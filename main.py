@@ -5,10 +5,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.shared.config.database import engine, Base, SessionLocal
 
 from app.routes.userRoutes import userRouter
+from app.routes.medicalRecordRoutes import medicalRecordRouter
 
 app = FastAPI()
 
 app.include_router(userRouter, tags=["users"])
+app.include_router(medicalRecordRouter, tags=["medical_records"])
 # CORS configuration
 app.add_middleware(
     CORSMiddleware,

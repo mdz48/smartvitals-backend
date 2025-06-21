@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from app.models.user import User
 from app.schemas.userSchema import userSchema, userCreateSchema, userResponseSchema, userLoginSchema, loginResponseSchema
@@ -34,7 +34,9 @@ async def create_user(user: userCreateSchema, db: Session = Depends(get_db)):
 
 @userRouter.get("/users", response_model=list[userResponseSchema], tags=["users"], status_code=200)
 async def get_users(db: Session = Depends(get_db)):
-    users = db.query(User).all()
+    users = db.query(User).where(User.deleted.is_(None)).all()  # Filtramos usuarios no eliminados
+    if not users:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No se encontraron usuarios") 
     return users
  
 @userRouter.get("/users/{user_id}", response_model=userResponseSchema, tags=["users"], status_code=200)
@@ -68,8 +70,11 @@ async def delete_user(user_id: int, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
     
-    db.delete(user)
+    # Eliminacion lógica: ponemos fecha en el campo deleted
+    user.deleted = datetime.utcnow()
+    db.add(user)
     db.commit()
+    db.refresh(user)
     return {"detail": "Usuario eliminado exitosamente"}
 
 @userRouter.post("/users/login", response_model=loginResponseSchema, tags=["users"], status_code=200)
@@ -101,4 +106,5 @@ async def login_user(user: userLoginSchema, db: Session = Depends(get_db)):
 @userRouter.get("/users/me", response_model=userResponseSchema, tags=["users"], status_code=200)
 async def get_current_user_info(current_user: User = Depends(get_current_user)):
     return current_user
+
 
