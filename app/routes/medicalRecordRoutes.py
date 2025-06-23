@@ -79,4 +79,3 @@ async def delete_medical_record(record_id: int, db: Session = Depends(get_db)):
     db.delete(record)
     db.commit()
     return {"detail": "Registro médico eliminado exitosamente"}
-

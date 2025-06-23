@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form
 from datetime import datetime, timedelta
 
 from app.models.user import User
@@ -7,9 +8,11 @@ from app.shared.config.database import SessionLocal
 from sqlalchemy.orm import Session
 from app.shared.config.database import get_db
 from app.shared.config.middleware.security import get_password_hash, get_current_user, verify_password, ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token
+from app.shared.config.s3Files import upload_file_to_s3, upload_files_to_s3
 
 userRouter = APIRouter()
 
+# Ruta para crear un nuevo usuario
 @userRouter.post("/users", response_model=userResponseSchema, status_code=201, tags=["users"])
 async def create_user(user: userCreateSchema, db: Session = Depends(get_db)):
     # Verifiamos que el usuario no exista
@@ -46,23 +49,40 @@ async def get_user(user_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
     return user
 
+# Ruta para actualizar un usuario
 @userRouter.put("/users/{user_id}", response_model=userResponseSchema, tags=["users"], status_code=200)
-async def update_user(user_id: int, user: userCreateSchema, db: Session = Depends(get_db)):
-    existing_user = db.query(User).filter(User.id == user_id).first()
-    if not existing_user:
+async def update_user(
+    user_id: int, 
+    name: Optional[str] = Form(None),
+    lastname: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
+    password: Optional[str] = Form(None),
+    profile_picture: Optional[UploadFile] = File(None),
+    
+    db: Session = Depends(get_db)):
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+    
+    if profile_picture and profile_picture.content_type not in ["image/jpeg", "image/png"]:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Formato de imagen no soportado. Use JPEG o PNG.")
 
     # Actualizamos los campos del usuario
-    for key, value in user.model_dump(exclude_unset=True).items():
-        setattr(existing_user, key, value)
-
-    # Si se proporciona una nueva contraseña, la hasheamos
-    if user.password:
-        existing_user.password = get_password_hash(user.password)
+    if name:
+        user.name = name
+    if lastname:
+        user.lastname = lastname
+    if email:
+        user.email = email
+    if password:
+        user.password = get_password_hash(password)
+    if profile_picture:
+        user.profile_picture = upload_file_to_s3(profile_picture)
 
     db.commit()
-    db.refresh(existing_user)
-    return existing_user
+    db.refresh(user)
+    return user
 
 @userRouter.delete("/users/{user_id}", status_code=204, tags=["users"])
 async def delete_user(user_id: int, db: Session = Depends(get_db)):
@@ -71,7 +91,7 @@ async def delete_user(user_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
     
     # Eliminacion lógica: ponemos fecha en el campo deleted
-    user.deleted = datetime.utcnow()
+    user.deleted = datetime.now()
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -107,4 +127,17 @@ async def login_user(user: userLoginSchema, db: Session = Depends(get_db)):
 async def get_current_user_info(current_user: User = Depends(get_current_user)):
     return current_user
 
+
+# ruta de prueb para subir archivos
+@userRouter.post("/users/upload", tags=["users"], status_code=200)
+async def upload_files(files: list[UploadFile] = File(...), db: Session = Depends(get_db)):
+    if not files:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No se han subido archivos")
+    
+    file_urls = upload_files_to_s3(files)
+    
+    if not file_urls:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error al subir los archivos")
+    
+    return {"file_urls": file_urls}
 
