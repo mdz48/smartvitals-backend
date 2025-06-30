@@ -5,7 +5,7 @@ from app.schemas.userSchema import userResponseSchema
 
 class medicalRecordSchema(BaseModel):
     patient_id: int
-    # doctor_id: Optional[int] = None
+    doctor_id: Optional[int] = None
     temperature: float
     blood_pressure: float
     oxygen_saturation: float
@@ -18,13 +18,11 @@ class medicalRecordSchema(BaseModel):
     
 class medicalRecordResponseSchema(medicalRecordSchema):
     id: int
-    doctor_id: int
-    patient_id: int
     created_at: datetime
     updated_at: datetime
     deleted: Optional[datetime] = None
     doctor: Optional[userResponseSchema] = None
-    patient: Optional[userResponseSchema] = None
+    patient: userResponseSchema
 
     model_config = ConfigDict(from_attributes=True)
     

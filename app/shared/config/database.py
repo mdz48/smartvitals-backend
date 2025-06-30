@@ -6,14 +6,24 @@ from dotenv import load_dotenv
 
 # Cargar variables de entorno desde el archivo .env
 load_dotenv()
+db_config = {
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+    "host": os.getenv("DB_HOST", "localhost"),
+    "port": os.getenv("DB_PORT", "3306"),
+    "database": os.getenv("DB_NAME")
+}
 
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
-
-# Verificar que la URL de la base de datos se haya cargado correctamente
-if not SQLALCHEMY_DATABASE_URL:
-    raise ValueError("DATABASE_URL no está configurada en las variables de entorno")
-
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+try:
+    SQLALCHEMY_DATABASE_URL = f"mysql+pymysql://{db_config['user']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/{db_config['database']}"
+    engine = create_engine(SQLALCHEMY_DATABASE_URL)
+    with engine.connect() as connection:
+        pass
+except Exception as e:
+    print(f"Error al conectar a la base de datos RDS, conectando a localhost para desarrollo: {e}")
+    DB_URL = os.getenv("DB_URL")
+    SQLALCHEMY_DATABASE_URL = DB_URL 
+    engine = create_engine(SQLALCHEMY_DATABASE_URL)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base() 
