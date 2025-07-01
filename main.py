@@ -1,16 +1,26 @@
 from fastapi import FastAPI, Depends,status, HTTPException
 from sqlalchemy.orm import Session
 from fastapi.middleware.cors import CORSMiddleware
+import logging
 
 from app.shared.config.database import engine, Base, SessionLocal
 
 from app.routes.userRoutes import userRouter
 from app.routes.medicalRecordRoutes import medicalRecordRouter
+from app.routes.sensorRoutes import sensorRouter
+
+# Configurar logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 app = FastAPI()
 
 app.include_router(userRouter, tags=["users"])
 app.include_router(medicalRecordRouter, tags=["medical_records"])
+app.include_router(sensorRouter, tags=["sensors"])
+
 # CORS configuration
 app.add_middleware(
     CORSMiddleware,
