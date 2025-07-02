@@ -37,5 +37,6 @@ uvicorn==0.34.3
 bcrypt==4.3.0
 python-multipart
 cryptography
-pika==1.3.2
-paho-mqtt==1.6.1
+pika
+paho-mqtt
+uvicorn[standard]

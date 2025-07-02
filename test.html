@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Monitor de Sensores - WebSocket</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6fa;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 40px auto;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px #0001;
+            padding: 24px;
+        }
+
+        h1 {
+            color: #2a4d7a;
+        }
+
+        #status {
+            margin-bottom: 16px;
+            font-weight: bold;
+        }
+
+        #messages {
+            background: #f0f4f8;
+            border-radius: 6px;
+            padding: 12px;
+            min-height: 120px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .msg {
+            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 4px;
+            background: #e3f2fd;
+        }
+
+        .alert {
+            background: #ffebee;
+            color: #c62828;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Monitor de Sensores (WebSocket)</h1>
+        <div id="status">Conectando...</div>
+        <div id="messages"></div>
+    </div>
+    <script>
+        const ws = new WebSocket("ws://localhost:8000/ws/sensores");
+        const statusDiv = document.getElementById('status');
+        const messagesDiv = document.getElementById('messages');
+
+        ws.onopen = function () {
+            statusDiv.textContent = "WebSocket conectado";
+            statusDiv.style.color = "green";
+        };
+
+        ws.onclose = function () {
+            statusDiv.textContent = "WebSocket desconectado";
+            statusDiv.style.color = "red";
+        };
+
+        ws.onmessage = function (event) {
+            try {
+                const data = JSON.parse(event.data);
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'msg';
+                if (data.type && data.type.includes('alert')) {
+                    msgDiv.classList.add('alert');
+                }
+                msgDiv.textContent = JSON.stringify(data, null, 2);
+                messagesDiv.appendChild(msgDiv);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            } catch (e) {
+                console.error("Error procesando mensaje:", e);
+            }
+        };
+    </script>
+</body>
+
+</html>

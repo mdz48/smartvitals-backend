@@ -4,8 +4,9 @@ import paho.mqtt.client as mqtt
 
 load_dotenv()
 
-MQTT_HOST = os.getenv('RABBITMQ_HOST')
-MQTT_PORT = int(os.getenv('MQTT_PORT'))
+# Configuración para conectar a EC2
+MQTT_HOST = os.getenv('RABBITMQ_HOST') 
+MQTT_PORT = int(os.getenv('MQTT_PORT', '1883'))
 MQTT_USER = os.getenv('RABBITMQ_USER')
 MQTT_PASSWORD = os.getenv('RABBITMQ_PASSWORD')
 
