@@ -58,6 +58,14 @@ def start_mqtt_consumer():
     client.connect(MQTT_HOST, MQTT_PORT, 60)
     client.loop_forever()
 
+# Guardar el event loop principal en el manager de WebSocket
+manager.main_event_loop = asyncio.get_event_loop()
+
+# Lanzar el hilo del consumer AMQP
+from app.rabbit_consumer_amqp import start_rabbit_consumer
+import threading
+threading.Thread(target=start_rabbit_consumer, args=(manager,), daemon=True).start()
+
 # Al final de tu main.py, después de crear la app:
 threading.Thread(target=start_mqtt_consumer, daemon=True).start()
 

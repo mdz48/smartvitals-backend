@@ -7,6 +7,7 @@ wsRouter = APIRouter()
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
+        self.main_event_loop = None  # Permite guardar el event loop principal
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
