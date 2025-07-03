@@ -4,6 +4,7 @@ import pika
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from dotenv import load_dotenv
 import threading
+from app.shared.services.sensoresService import add_sensor_data, process_and_save_records
 
 load_dotenv()
 
@@ -38,6 +39,14 @@ def rabbitmq_consumer():
                     asyncio.run(ws.send_text(message))
                 except Exception:
                     clients.discard(ws)
+            add_sensor_data(
+            data["patient_id"],
+            data["doctor_id"],
+            data.get("temperature"),
+            data.get("blood_pressure"),
+            data.get("oxygen_saturation"),
+            data.get("heart_rate")
+            )
         return callback
 
     for topic in TOPICS:
