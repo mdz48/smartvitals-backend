@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 from app.models.medicalRecord import MedicalRecord
 from app.shared.config.database import SessionLocal
 
+medicion_activa = {}  # {patient_id: True/False}
+
 # Estructura para acumular datos por paciente
 data_buffer = defaultdict(lambda: {
     "temperature": [],
@@ -17,14 +19,16 @@ data_buffer = defaultdict(lambda: {
 
 # Llamar a esta función cada vez que recibas un dato de sensor
 def add_sensor_data(patient_id, doctor_id, temperature, blood_pressure, oxygen_saturation, heart_rate):
+    if not medicion_activa.get(patient_id, False):
+        return # No procesar si la medición no está activa
     buf = data_buffer[patient_id]
-    if temperature is not None:
+    if temperature is not None and temperature != 0:
         buf["temperature"].append(temperature)
-    if blood_pressure is not None:
+    if blood_pressure is not None and blood_pressure != 0:
         buf["blood_pressure"].append(blood_pressure)
-    if oxygen_saturation is not None:
+    if oxygen_saturation is not None and oxygen_saturation != 0:
         buf["oxygen_saturation"].append(oxygen_saturation)
-    if heart_rate is not None:
+    if heart_rate is not None and heart_rate != 0:
         buf["heart_rate"].append(heart_rate)
     buf["doctor_id"] = doctor_id
     buf["patient_id"] = patient_id

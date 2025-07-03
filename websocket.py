@@ -5,6 +5,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from dotenv import load_dotenv
 import threading
 from app.shared.services.sensoresService import add_sensor_data, process_and_save_records
+from app.shared.services.sensoresService import medicion_activa
 
 load_dotenv()
 
@@ -41,7 +42,7 @@ def rabbitmq_consumer():
                     clients.discard(ws)
             add_sensor_data(
             data["patient_id"],
-            data["doctor_id"],
+            data.get("doctor_id"),
             data.get("temperature"),
             data.get("blood_pressure"),
             data.get("oxygen_saturation"),
@@ -59,7 +60,19 @@ async def websocket_endpoint(websocket: WebSocket):
     clients.add(websocket)
     try:
         while True:
-            await websocket.receive_text()  # Mantener la conexión abierta
+            msg = await websocket.receive_text()
+            try:
+                data = json.loads(msg)
+                if data.get("action") == "start":
+                    patient_id = data["patient_id"]
+                    medicion_activa[patient_id] = True
+                    await websocket.send_text(f"Medición iniciada para paciente {patient_id}")
+                elif data.get("action") == "stop":
+                    patient_id = data["patient_id"]
+                    medicion_activa[patient_id] = False
+                    await websocket.send_text(f"Medición detenida para paciente {patient_id}")
+            except Exception:
+                pass  # Si no es un comando, simplemente ignóralo
     except WebSocketDisconnect:
         clients.discard(websocket)
 

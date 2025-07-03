@@ -20,6 +20,16 @@ AWS_S3_BUCKET_NAME=
 
 DATABASE_USER=
 DATABASE_PASSWORD=
+DB_HOST=
+DB_NAME=
+DB_PORT=
+
+RABBITMQ_HOST=
+RABBITMQ_USER=
+RABBITMQ_PASSWORD=
+RABBITMQ_PORT=
+RABBITMQ_VIRTUAL_HOST=/
+MQTT_PORT=
 
 aws_region=
 aws_access_key_id=
@@ -29,11 +39,23 @@ aws_session_token=
 
 > **Nota:**  
 > - Llena los valores de `aws_access_key_id`, `aws_secret_access_key`, `aws_session_token` y `aws_region` con tus credenciales de AWS.
-> - `DATABASE_USER` y `DATABASE_PASSWORD` son opcionales si ya están incluidos en `DATABASE_URL`.
+> - Si la instancia AWS no esta prendida, entonces se utilizará una Base de datos de manera local.
 
-## Ejecutar el servidor
+## Ejecutar el servidor REST
 ```bash
 uvicorn main:app --reload
+```
+
+## Ejecutar el servidor Websocket
+```bash
+uvicorn websocket:app --reload --port 8001
+```
+
+## Conectarse a Ws para guardar un expediente
+```bash
+ws://localhost:8001/ws/sensores
+{"action": "start", "patient_id": 5}
+{"action": "stop", "patient_id": 5}
 ```
 
 ## Notas importantes
