@@ -10,3 +10,4 @@ ENV/
 .env
 .vscode/
 .idea/
+testing/

@@ -27,6 +27,7 @@ async def create_user(user: userCreateSchema, db: Session = Depends(get_db)):
         name=user.name,
         lastname=user.lastname,
         email=user.email,
+        age = user.age,
         password=hashed_password,  # Password hasheada
         role=user.role,
         profile_picture=user.profile_picture
@@ -121,7 +122,13 @@ async def login_user(user: userLoginSchema, db: Session = Depends(get_db)):
     return loginResponseSchema(
         access_token=access_token,
         token_type="bearer",
-        user=existing_user  
+        id=existing_user.id,
+        name=existing_user.name,
+        lastname=existing_user.lastname,
+        age=existing_user.age,
+        email=existing_user.email,
+        role=existing_user.role,
+        profile_picture=existing_user.profile_picture
     )
 
 @userRouter.get("/users/me", response_model=userResponseSchema, tags=["users"], status_code=200)

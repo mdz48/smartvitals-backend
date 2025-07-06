@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from app.shared.config.database import Base
 from app.models.interfaces import userRole
 from datetime import datetime
+from app.models.user import User
 
 class MedicalRecord(Base):
     __tablename__ = 'medical_record'
