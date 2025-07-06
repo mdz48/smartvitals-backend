@@ -36,7 +36,7 @@ def add_sensor_data(patient_id, doctor_id, temperature, blood_pressure, oxygen_s
 # Proceso que cada minuto promedia y guarda en la base de datos
 def process_and_save_records():
     while True:
-        time.sleep(2)  # Espera 1 minuto
+        time.sleep(60)  # Espera 1 minuto
         for patient_id, buf in list(data_buffer.items()):
             if len(buf["temperature"]) == 0:
                 continue  # No hay datos nuevos
@@ -60,9 +60,9 @@ def process_and_save_records():
                     blood_pressure=avg_bp,
                     oxygen_saturation=avg_ox,
                     heart_rate=avg_hr,
-                    diagnosis="Automático por sensores",
+                    diagnosis="",
                     treatment="",
-                    notes="Registro generado automáticamente por promedio de sensores"
+                    notes=""
                 )
                 db.add(record)
                 db.commit()
@@ -82,6 +82,47 @@ def process_and_save_records():
                 "doctor_id": buf["doctor_id"],
                 "patient_id": buf["patient_id"]
             }
+            
+def validar_datos(temperature, blood_pressure, oxygen_saturation, heart_rate):
+    alertas = []
+
+    # Temperatura
+    if temperature is not None:
+        if temperature < 35:
+            alertas.append("Hipotermia: Temperatura menor a 35°C")
+        elif 37.5 <= temperature < 38:
+            alertas.append("Febrícula: Temperatura entre 37.5°C y 38°C")
+        elif 38 <= temperature < 39:
+            alertas.append("Fiebre: Temperatura entre 38°C y 39°C")
+        elif temperature >= 39:
+            alertas.append("Hipertermia: Temperatura mayor a 39°C")
+
+    # Presión arterial (ejemplo para sistólica/diastólica)
+    if blood_pressure is not None:
+        try:
+            sistolica, diastolica = map(float, str(blood_pressure).split('/'))
+            if sistolica < 90 or diastolica < 60:
+                alertas.append("Hipotensión: Presión arterial baja")
+            elif sistolica > 140 or diastolica > 90:
+                alertas.append("Hipertensión: Presión arterial alta")
+        except Exception:
+            pass  # Si el formato no es correcto, ignora
+
+    # Oxigenación
+    if oxygen_saturation is not None:
+        if oxygen_saturation < 90:
+            alertas.append("Oxigenación grave: SpO2 menor a 90%")
+        elif 90 <= oxygen_saturation < 93:
+            alertas.append("Oxigenación leve: SpO2 entre 90% y 92%")
+
+    # Ritmo cardíaco
+    if heart_rate is not None:
+        if heart_rate < 50:
+            alertas.append("Bradicardia: Ritmo cardíaco menor a 50 lpm")
+        elif heart_rate > 100:
+            alertas.append("Taquicardia: Ritmo cardíaco mayor a 100 lpm")
+
+    return alertas
 
 # Inicia el hilo de procesamiento
 threading.Thread(target=process_and_save_records, daemon=True).start()

@@ -30,13 +30,20 @@ def send_message(topic, data):
         properties=pika.BasicProperties(delivery_mode=2)  # Hacer el mensaje persistente
     )
     print(f"Mensaje enviado a '{topic}': {message}")
+    
+# data = {
+#     "patient_id": 2,
+#     # "doctor_id": 4,  # Opcional, si quieres que el doctor reciba la alerta
+#     "temperature": 34.5  # Valor fuera de rango para probar alerta
+# }
+# send_message("temperatura", data)
 
 # Ejemplo de envío de mensajes a cada topic
 data_examples = {
-    'temperatura': {'temperature': 36.5},
-    'oxigeno': {'oxigen': 98},
-    'presion': {'pressure': 120},
-    'ritmo_cardiaco': {'heart_rate': 75}
+    'temperatura': {'patient_id': 5, 'temperature': 36.5},
+    'oxigeno': {'patient_id': 5, 'oxygen_saturation': 98},
+    'presion': {'patient_id': 5, 'blood_pressure': 120.7},
+    'ritmo_cardiaco': {'patient_id': 5, 'heart_rate': 75}
 }
 
 for topic in TOPICS:
