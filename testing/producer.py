@@ -1,5 +1,9 @@
+
 import pika
 import json
+import time
+import random
+import math
 from dotenv import load_dotenv
 import os
 load_dotenv()
@@ -8,8 +12,8 @@ load_dotenv()
 RABBITMQ_HOST = os.getenv('RABBITMQ_HOST')
 RABBITMQ_USER = os.getenv('RABBITMQ_USER')
 RABBITMQ_PASSWORD = os.getenv('RABBITMQ_PASSWORD')
-EXCHANGE = 'sensores_exchange'
-TOPICS = ['temperatura', 'oxigeno', 'presion', 'ritmo_cardiaco']
+EXCHANGE = 'amq.topic'  # Cambiar al exchange por defecto
+TOPICS = ['temperatura', 'oxigeno', 'ritmo_cardiaco']
 
 # Conexión a RabbitMQ
 credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
@@ -29,24 +33,61 @@ def send_message(topic, data):
         body=message,
         properties=pika.BasicProperties(delivery_mode=2)  # Hacer el mensaje persistente
     )
-    print(f"Mensaje enviado a '{topic}': {message}")
+    print(f"📤 Enviado a '{topic}': {message}")
+
+# Función para generar datos variando
+def generate_varying_data(cycle):
+    # Datos base que varían con el tiempo
+    base_temp = 36.5 + 2 * math.sin(cycle * 0.1) + random.uniform(-0.5, 0.5)
+    base_oxygen = 95 + 3 * math.sin(cycle * 0.15) + random.uniform(-2, 2)
+    base_heart_rate = 70 + 10 * math.sin(cycle * 0.2) + random.uniform(-5, 5)
     
-# data = {
-#     "patient_id": 2,
-#     # "doctor_id": 4,  # Opcional, si quieres que el doctor reciba la alerta
-#     "temperature": 34.5  # Valor fuera de rango para probar alerta
-# }
-# send_message("temperatura", data)
+    # Asegurar rangos realistas
+    base_temp = max(35.0, min(39.0, base_temp))
+    base_oxygen = max(85, min(100, base_oxygen))
+    base_heart_rate = max(50, min(120, base_heart_rate))
+    
+    return {
+        'temperatura': {
+            'patient_id': 5,
+            'doctor_id': 3,
+            'temperature': round(base_temp, 1),
+            'timestamp': time.time()
+        },
+        'oxigeno': {
+            'patient_id': 5,
+            'doctor_id': 3,
+            'oxygen_saturation': round(base_oxygen, 1),
+            'timestamp': time.time()
+        },
+        'ritmo_cardiaco': {
+            'patient_id': 5,
+            'doctor_id': 3,
+            'heart_rate': round(base_heart_rate, 1),
+            'timestamp': time.time()
+        }
+    }
 
-# Ejemplo de envío de mensajes a cada topic
-data_examples = {
-    'temperatura': {'patient_id': 5, 'temperature': 36.5},
-    'oxigeno': {'patient_id': 5, 'oxygen_saturation': 98},
-    'presion': {'patient_id': 5, 'blood_pressure': 120.7},
-    'ritmo_cardiaco': {'patient_id': 5, 'heart_rate': 75}
-}
+# Loop principal para enviar datos cada segundo
+try:
+    print("🚀 Iniciando productor de datos de sensores...")
+    print("📊 Enviando datos cada segundo a: temperatura, oxigeno, ritmo_cardiaco")
+    print("🛑 Presiona Ctrl+C para detener")
+    
+    cycle = 0
+    while True:
+        # Generar datos variando
+        data = generate_varying_data(cycle)
+        
+        # Enviar a cada topic
+        for topic in TOPICS:
+            send_message(topic, data[topic])
+        
+        cycle += 1
+        time.sleep(1)  # Esperar 1 segundo
 
-for topic in TOPICS:
-    send_message(topic, data_examples[topic])
-
-connection.close()
+except KeyboardInterrupt:
+    print("\n🛑 Productor detenido por el usuario.")
+finally:
+    connection.close()
+    print("🔌 Conexión cerrada.")

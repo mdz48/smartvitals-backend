@@ -9,7 +9,7 @@ RABBITMQ_HOST = os.getenv('RABBITMQ_HOST')  # Cambia esto si tu RabbitMQ está e
 RABBITMQ_USER = os.getenv('RABBITMQ_USER')    # Cambia por tu usuario
 RABBITMQ_PASSWORD = os.getenv('RABBITMQ_PASSWORD')  # Cambia por tu contraseña
 EXCHANGE = 'sensores_exchange'
-TOPICS = ['temperatura', 'oxigeno', 'presion', 'ritmo_cardiaco']
+TOPICS = ['temperatura', 'oxigeno', 'presion', 'ritmo_cardiaco', 'sensor']
 
 # Conexión a RabbitMQ
 credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
