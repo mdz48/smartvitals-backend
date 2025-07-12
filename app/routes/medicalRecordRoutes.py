@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session, joinedload
 from app.shared.config.database import get_db
 from app.shared.config.middleware.security import get_current_user
 
+from app.shared.services.stadisticsService import get_medical_record_statistics
+
 medicalRecordRouter = APIRouter()
 
 # Ruta para crear un nuevo registro médico
@@ -118,3 +120,17 @@ async def delete_medical_record(record_id: int, db: Session = Depends(get_db)):
     db.delete(record)
     db.commit()
     return {"detail": "Registro médico eliminado exitosamente"}
+
+# Ruta para obtener los registros medicos dentro de un rango de fechas de un usuario
+@medicalRecordRouter.get("/users/{user_id}/medicalRecords/range", response_model=list[medicalRecordResponseSchema], tags=["medical_records"], status_code=200)
+async def get_medical_records_by_date_range(user_id: int, start_date: str, end_date: str, db: Session = Depends(get_db)):
+    records = db.query(MedicalRecord).filter(
+        MedicalRecord.patient_id == user_id,
+        MedicalRecord.created_at >= start_date,
+        MedicalRecord.created_at <= end_date
+    ).all()
+    
+    if not records:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No se encontraron registros médicos en el rango de fechas especificado")
+    
+    return records
