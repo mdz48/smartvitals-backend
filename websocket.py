@@ -243,6 +243,7 @@ async def websocket_endpoint(websocket: WebSocket):
             msg = await websocket.receive_text()
             try:
                 data = json.loads(msg)
+                
                 if data.get("action") == "start":
                     patient_id = data["patient_id"]
                     medicion_activa[patient_id] = True
@@ -250,6 +251,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         "type": "info",
                         "message": f"Medición iniciada para paciente {patient_id}"
                     }))
+                    
                 elif data.get("action") == "stop":
                     patient_id = data["patient_id"]
                     medicion_activa[patient_id] = False
@@ -257,6 +259,30 @@ async def websocket_endpoint(websocket: WebSocket):
                         "type": "info",
                         "message": f"Medición detenida para paciente {patient_id}"
                     }))
+                    
+                elif data.get("action") == "doctor_config":
+                    # Nueva acción para configuración de doctor
+                    doctor_id = data.get("doctor_id")
+                    patient_id = data.get("patient_id")
+                    
+                    if doctor_id and patient_id:
+                        # Enviar configuración al RabbitMQ con doctor_id como patient_id
+                        doctor_config = {
+                            "patient_id": int(doctor_id),  # Usar doctor_id como patient_id
+                            "doctor_id": int(doctor_id),
+                            "monitored_patient_id": int(patient_id),  # ID del paciente que está monitoreando
+                            "timestamp": time.time(),
+                            "config_type": "doctor_monitoring"
+                        }
+                        
+                        await send_raspberry_config(doctor_config)
+                        logger.info(f"Configuración de doctor enviada: doctor_id={doctor_id}, monitored_patient={patient_id}")
+                        
+                        await websocket.send_text(json.dumps({
+                            "type": "info",
+                            "message": f"Configuración de doctor enviada para monitorear paciente {patient_id}"
+                        }))
+                        
             except json.JSONDecodeError:
                 logger.error("Error: Mensaje JSON inválido recibido")
             except Exception as e:

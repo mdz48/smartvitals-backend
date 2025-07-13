@@ -91,10 +91,8 @@ async def delete_user(user_id: int, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
-    
-    # Eliminacion lógica: ponemos fecha en el campo deleted
-    user.deleted = datetime.now()
-    db.add(user)
+    # Eliminamos compleamente el usuario
+    db.delete(user)
     db.commit()
     db.refresh(user)
     return {"detail": "Usuario eliminado exitosamente"}
@@ -151,34 +149,34 @@ async def upload_files(files: list[UploadFile] = File(...), db: Session = Depend
 
 
 # Ruta para añadir un paciente a un doctor
-@userRouter.post("/doctors/{doctor_id}/patients/{patient_id}", status_code=201, tags=["medical_records"])
-async def add_patient_to_doctor(doctor_id: int, patient_id: int, db: Session = Depends(get_db)):
+@userRouter.post("/doctors/{doctor_id}/patients/{patient_email}", status_code=201, tags=["users"])
+async def add_patient_to_doctor(doctor_id: int, patient_email: str, db: Session = Depends(get_db)):
     doctor = db.query(User).filter(User.id == doctor_id, User.role == 'doctor').first()
     if not doctor:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Doctor no encontrado")
 
-    patient = db.query(User).filter(User.id == patient_id, User.role == 'patient').first()
+    patient = db.query(User).filter(User.email == patient_email, User.role == 'patient').first()
     if not patient:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Paciente no encontrado")
     
     # Verificar si la relación ya existe
     existing_relation = db.query(DoctorPatient).filter(
         DoctorPatient.doctor_id == doctor_id,
-        DoctorPatient.patient_id == patient_id
+        DoctorPatient.patient_id == patient.id
     ).first()
     
     if existing_relation:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El paciente ya está asignado a este doctor")
     
     # Crear nueva relación usando la tabla DoctorPatient
-    new_relation = DoctorPatient(doctor_id=doctor_id, patient_id=patient_id)
+    new_relation = DoctorPatient(doctor_id=doctor_id, patient_id=patient.id)
     db.add(new_relation)
     db.commit()
     
     return {"detail": "Paciente añadido al doctor exitosamente"}
 
 # Ruta para obtener los pacientes de un doctor
-@userRouter.get("/doctors/{doctor_id}/patients", response_model=list[userResponseSchema], tags=["medical_records"], status_code=200)
+@userRouter.get("/doctors/{doctor_id}/patients", response_model=list[userResponseSchema], tags=["users"], status_code=200)
 async def get_doctor_patients(doctor_id: int, db: Session = Depends(get_db)):
     doctor = db.query(User).filter(User.id == doctor_id, User.role == 'doctor').first()
     if not doctor:
@@ -192,7 +190,7 @@ async def get_doctor_patients(doctor_id: int, db: Session = Depends(get_db)):
     return patients
 
 # Ruta para obtener los doctores de un paciente
-@userRouter.get("/patients/{patient_id}/doctors", response_model=list[userResponseSchema], tags=["medical_records"], status_code=200)
+@userRouter.get("/patients/{patient_id}/doctors", response_model=list[userResponseSchema], tags=["users"], status_code=200)
 async def get_patient_doctors(patient_id: int, db: Session = Depends(get_db)):
     patient = db.query(User).filter(User.id == patient_id, User.role == 'patient').first()
     if not patient:
@@ -208,3 +206,44 @@ async def get_patient_doctors(patient_id: int, db: Session = Depends(get_db)):
 async def get_doctors(db: Session = Depends(get_db)):
     doctors = db.query(User).filter(User.role == 'doctor', User.deleted.is_(None)).all()
     return doctors
+
+# Ruta para registrar a un nuevo usuario(paciente) como doctor y añadirlo automaticamente a su lista de pacientes
+@userRouter.post("/doctors/{doctor_id}/register/patient", response_model=userResponseSchema, tags=["users"], status_code=201)
+async def register_patient_as_doctor(user: userCreateSchema, doctor_id: int, db: Session = Depends(get_db)):
+    # Usamos la funcino para crear un nuevo usuario
+    newUser = await create_user(user, db)
+    # Añadir el nuevo paciente a la lista de pacientes del doctor
+    doctor = db.query(User).filter(User.id == doctor_id, User.role == 'doctor').first()
+    if not doctor:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Doctor no encontrado")
+    new_relation = DoctorPatient(doctor_id=doctor_id, patient_id=newUser.id)
+    db.add(new_relation)
+    db.commit()
+    db.refresh(new_relation)
+    return newUser
+    
+    
+# Ruta para eliminar un paciente de un doctor
+@userRouter.delete("/doctors/{doctor_id}/patients/{patient_id}", status_code=204, tags=["users"])
+async def remove_patient_from_doctor(doctor_id: int, patient_id: int, db: Session = Depends(get_db)):
+    doctor = db.query(User).filter(User.id == doctor_id, User.role == 'doctor').first()
+    if not doctor:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Doctor no encontrado")
+
+    patient = db.query(User).filter(User.id == patient_id, User.role == 'patient').first()
+    if not patient:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Paciente no encontrado")
+    
+    # Eliminar la relación entre el doctor y el paciente
+    relation = db.query(DoctorPatient).filter(
+        DoctorPatient.doctor_id == doctor_id,
+        DoctorPatient.patient_id == patient_id
+    ).first()
+    
+    if not relation:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="La relación entre el doctor y el paciente no existe")
+    
+    db.delete(relation)
+    db.commit()
+    
+    return {"detail": "Paciente eliminado del doctor exitosamente"}
