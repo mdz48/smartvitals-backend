@@ -91,10 +91,8 @@ async def delete_user(user_id: int, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
-    
-    # Eliminacion lógica: ponemos fecha en el campo deleted
-    user.deleted = datetime.now()
-    db.add(user)
+    # Eliminamos compleamente el usuario
+    db.delete(user)
     db.commit()
     db.refresh(user)
     return {"detail": "Usuario eliminado exitosamente"}
@@ -225,3 +223,27 @@ async def register_patient_as_doctor(user: userCreateSchema, doctor_id: int, db:
     return newUser
     
     
+# Ruta para eliminar un paciente de un doctor
+@userRouter.delete("/doctors/{doctor_id}/patients/{patient_id}", status_code=204, tags=["users"])
+async def remove_patient_from_doctor(doctor_id: int, patient_id: int, db: Session = Depends(get_db)):
+    doctor = db.query(User).filter(User.id == doctor_id, User.role == 'doctor').first()
+    if not doctor:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Doctor no encontrado")
+
+    patient = db.query(User).filter(User.id == patient_id, User.role == 'patient').first()
+    if not patient:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Paciente no encontrado")
+    
+    # Eliminar la relación entre el doctor y el paciente
+    relation = db.query(DoctorPatient).filter(
+        DoctorPatient.doctor_id == doctor_id,
+        DoctorPatient.patient_id == patient_id
+    ).first()
+    
+    if not relation:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="La relación entre el doctor y el paciente no existe")
+    
+    db.delete(relation)
+    db.commit()
+    
+    return {"detail": "Paciente eliminado del doctor exitosamente"}

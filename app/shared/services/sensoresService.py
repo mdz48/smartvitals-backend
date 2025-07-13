@@ -4,6 +4,8 @@ from collections import defaultdict
 from sqlalchemy.orm import Session
 from app.models.medicalRecord import MedicalRecord
 from app.shared.config.database import SessionLocal
+import pandas as pd
+
 
 medicion_activa = {}  # {patient_id: True/False}
 
@@ -36,7 +38,7 @@ def add_sensor_data(patient_id, doctor_id, temperature, blood_pressure, oxygen_s
 # Proceso que cada minuto promedia y guarda en la base de datos
 def process_and_save_records():
     while True:
-        time.sleep(60)  # Espera 1 minuto
+        time.sleep(2)  # Espera 1 minuto
         for patient_id, buf in list(data_buffer.items()):
             if len(buf["temperature"]) == 0:
                 continue  # No hay datos nuevos

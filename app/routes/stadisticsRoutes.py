@@ -52,7 +52,7 @@ async def get_medical_records_by_date_range(patient_id: int, start_date: str, en
     return stadistics
 
 # Ruta para obtener las estadísticas de un doctor dentro de un rango de fechas
-@stadisticsRouter.get("/statistics/{doctor_id}/range", tags=["stadistics"], status_code=200)
+@stadisticsRouter.get("/statistics/{doctor_id}/patients/range", tags=["stadistics"], status_code=200)
 async def get_doctor_statistics_by_date_range(doctor_id: int, start_date: str, end_date: str, db: Session = Depends(get_db)):
     records = await get_doctor_medical_records(doctor_id, db)
     if not records:
