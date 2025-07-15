@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from datetime import timedelta
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from datetime import timedelta, datetime
 
 from app.models.medicalRecord import MedicalRecord
 from app.schemas.medicalRecordSchema import medicalRecordSchema, medicalRecordResponseSchema
@@ -121,16 +121,60 @@ async def delete_medical_record(record_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"detail": "Registro médico eliminado exitosamente"}
 
-# Ruta para obtener los registros medicos dentro de un rango de fechas de un usuario
-@medicalRecordRouter.get("/users/{user_id}/medicalRecords/range", response_model=list[medicalRecordResponseSchema], tags=["medical_records"], status_code=200)
-async def get_medical_records_by_date_range(user_id: int, start_date: str, end_date: str, db: Session = Depends(get_db)):
+# Ruta para obtener los registros medicos dentro de un rango de fechas de un paciente
+@medicalRecordRouter.get("/patients/{patient_id}/medicalRecords/range", response_model=list[medicalRecordResponseSchema], tags=["medical_records"], status_code=200)
+async def get_medical_records_by_date_range(
+    patient_id: int, 
+    start_date: str = Query(..., description="Formato: YYYY-MM-DD"), 
+    end_date: str = Query(..., description="Formato: YYYY-MM-DD"), 
+    db: Session = Depends(get_db)
+):
+    # Validar formato de fecha
+    try:
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Formato de fecha inválido. Usa YYYY-MM-DD.")
+
+    # Validar rango
+    if start > end:
+        raise HTTPException(status_code=400, detail="La fecha de inicio no puede ser mayor que la fecha de fin.")
+
+    end = end + timedelta(days=1)
+    # Buscar registros en el rango (incluyendo ambos extremos)
     records = db.query(MedicalRecord).filter(
-        MedicalRecord.patient_id == user_id,
-        MedicalRecord.created_at >= start_date,
-        MedicalRecord.created_at <= end_date
+        MedicalRecord.patient_id == patient_id,
+        MedicalRecord.created_at >= start,
+        MedicalRecord.created_at < end
     ).all()
-    
-    if not records:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No se encontraron registros médicos en el rango de fechas especificado")
-    
+
+    return records
+
+# Ruta para obtener los registros médicos dentro de un rango de fechas de los pacientes de un doctor
+@medicalRecordRouter.get("/doctors/{doctor_id}/medicalRecords/range", response_model=list[medicalRecordResponseSchema], tags=["medical_records"], status_code=200)
+async def get_doctor_medical_records_by_date_range(
+    doctor_id: int, 
+    start_date: str = Query(..., description="Formato: YYYY-MM-DD"), 
+    end_date: str = Query(..., description="Formato: YYYY-MM-DD"), 
+    db: Session = Depends(get_db)
+):
+    # Validar formato de fecha
+    try:
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Formato de fecha inválido. Usa YYYY-MM-DD.")
+
+    # Validar rango
+    if start > end:
+        raise HTTPException(status_code=400, detail="La fecha de inicio no puede ser mayor que la fecha de fin.")
+
+    end = end + timedelta(days=1)
+    # Buscar registros en el rango (incluyendo ambos extremos)
+    records = db.query(MedicalRecord).filter(
+        MedicalRecord.patient_id == doctor_id,
+        MedicalRecord.created_at >= start,
+        MedicalRecord.created_at < end
+    ).all()
+
     return records

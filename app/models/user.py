@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum, text
 from sqlalchemy.orm import relationship
 from app.shared.config.database import Base
-from app.models.interfaces import userRole
+from app.models.interfaces import userRole, userGender
 from datetime import datetime
 
 class User(Base):
@@ -11,6 +11,8 @@ class User(Base):
     name = Column(String(100), nullable=False)
     lastname = Column(String(100), nullable=False)
     age = Column(Integer, nullable=False) 
+    gender = Column(Enum(userGender), nullable=False)
+    pregnant = Column(Boolean, default=False, nullable=False)
     email = Column(String(255), unique=True, nullable=False)
     password = Column(String(255), nullable=False)
     profile_picture = Column(String(255), nullable=True, default=None)

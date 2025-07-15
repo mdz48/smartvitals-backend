@@ -11,11 +11,16 @@ from app.shared.config.database import get_db
 from app.shared.config.middleware.security import get_password_hash, get_current_user, verify_password, ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token
 from app.shared.config.s3Files import upload_file_to_s3, upload_files_to_s3
 
+from app.models.interfaces import userGender
+
 userRouter = APIRouter()
 
 # Ruta para crear un nuevo usuario
 @userRouter.post("/users", response_model=userResponseSchema, status_code=201, tags=["users"])
 async def create_user(user: userCreateSchema, db: Session = Depends(get_db)):
+    # Validación: solo mujeres pueden estar embarazadas
+    if user.pregnant and (user.gender != 'female' and user.gender != userGender.FEMALE):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Solo las mujeres pueden estar embarazadas.")
     # Verifiamos que el usuario no exista
     existing_user = db.query(User).filter(User.email == user.email).first()
     if existing_user:
@@ -27,7 +32,9 @@ async def create_user(user: userCreateSchema, db: Session = Depends(get_db)):
         name=user.name,
         lastname=user.lastname,
         email=user.email,
-        age = user.age,
+        age=user.age,
+        gender=user.gender,
+        pregnant=user.pregnant,
         password=hashed_password,  # Password hasheada
         role=user.role,
         profile_picture=user.profile_picture
@@ -59,6 +66,9 @@ async def update_user(
     lastname: Optional[str] = Form(None),
     email: Optional[str] = Form(None),
     password: Optional[str] = Form(None),
+    gender: Optional[str] = Form(None),
+    age: Optional[int] = Form(None),
+    pregnant: Optional[bool] = Form(None),
     profile_picture: Optional[UploadFile] = File(None),
     
     db: Session = Depends(get_db)):
@@ -70,15 +80,32 @@ async def update_user(
     if profile_picture and profile_picture.content_type not in ["image/jpeg", "image/png"]:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Formato de imagen no soportado. Use JPEG o PNG.")
 
+    # Validación: solo mujeres pueden estar embarazadas
+    new_gender = gender if gender is not None else user.gender
+    new_pregnant = pregnant if pregnant is not None else user.pregnant
+    if new_pregnant and (new_gender != 'female' and new_gender != userGender.FEMALE):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Solo las mujeres pueden estar embarazadas.")
+    
+
     # Actualizamos los campos del usuario
     if name:
         user.name = name
     if lastname:
         user.lastname = lastname
     if email:
+        # Validamos si el correo esta en uso
+        newEmail = db.query(User).filter(User.email == email).first()
+        if newEmail:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Este correo electrónico ya está en uso.")
         user.email = email
     if password:
         user.password = get_password_hash(password)
+    if gender:
+        user.gender = gender
+    if age is not None:
+        user.age = age
+    if pregnant is not None:
+        user.pregnant = pregnant
     if profile_picture:
         user.profile_picture = upload_file_to_s3(profile_picture)
 
@@ -124,6 +151,8 @@ async def login_user(user: userLoginSchema, db: Session = Depends(get_db)):
         name=existing_user.name,
         lastname=existing_user.lastname,
         age=existing_user.age,
+        gender=existing_user.gender,
+        pregnant=existing_user.pregnant,
         email=existing_user.email,
         role=existing_user.role,
         profile_picture=existing_user.profile_picture
