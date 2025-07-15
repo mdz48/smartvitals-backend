@@ -2,6 +2,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from typing import Optional
 from app.schemas.userSchema import userResponseSchema
+from app.schemas.riskSchema import RisksSchema
 
 class medicalRecordSchema(BaseModel):
     patient_id: int
@@ -23,6 +24,11 @@ class medicalRecordResponseSchema(medicalRecordSchema):
     deleted: Optional[datetime] = None
     doctor: Optional[userResponseSchema] = None
     patient: userResponseSchema
+
+    model_config = ConfigDict(from_attributes=True)
+    
+class medicalRecordWithRisksResponseSchema(medicalRecordResponseSchema):
+    risks: RisksSchema
 
     model_config = ConfigDict(from_attributes=True)
     

@@ -24,10 +24,10 @@ async def get_medical_record_statistics(db: Session, medical_records: List[Medic
             return {}
         
         return {
-            "media": float(np.mean(data)),
-            "mediana": float(np.median(data)),
+            "media": float(np.mean(data).round(2)),
+            "mediana": float(np.median(data).round(2)),
             "moda": float(calculate_mode(data)),
-            "desviacion_estandar": float(np.std(data)),
+            "desviacion_estandar": float(np.std(data).round(2)),
             "minimo": float(np.min(data)),
             "maximo": float(np.max(data)),
             "rango": float(np.max(data) - np.min(data))

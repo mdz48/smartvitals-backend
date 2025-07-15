@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from datetime import timedelta, datetime
 
 from app.models.medicalRecord import MedicalRecord
-from app.schemas.medicalRecordSchema import medicalRecordSchema, medicalRecordResponseSchema
+from app.schemas.medicalRecordSchema import medicalRecordSchema, medicalRecordResponseSchema, medicalRecordWithRisksResponseSchema
+from app.schemas.riskSchema import RisksSchema
 from app.models.user import User
 from app.models.doctorPatient import DoctorPatient
 
@@ -70,12 +71,40 @@ async def get_medical_records(db: Session = Depends(get_db)):
     return records
 
 # Ruta para obtener un registro médico por ID
-@medicalRecordRouter.get("/medicalRecords/{record_id}", response_model=medicalRecordResponseSchema, tags=["medical_records"], status_code=200)
+@medicalRecordRouter.get("/medicalRecords/{record_id}", response_model=medicalRecordWithRisksResponseSchema, tags=["medical_records"], status_code=200)
 async def get_medical_record(record_id: int, db: Session = Depends(get_db)):
     record = db.query(MedicalRecord).filter(MedicalRecord.id == record_id).first()
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Registro médico no encontrado")
-    return record
+
+    risks = RisksSchema(
+        hipotermia=record.temperature < 35.0,
+        fiebre=record.temperature > 37.5,
+        arritmia=record.heart_rate < 60 or record.heart_rate > 100,
+        hipoxemia=record.oxygen_saturation < 90.0,
+        hipertension=record.blood_pressure > 140.0,
+        hipotension=record.blood_pressure < 90.0
+    )
+
+    # Asegurarse de que doctor y patient sean los objetos completos
+    return medicalRecordWithRisksResponseSchema(
+        id=record.id,
+        patient_id=record.patient_id,
+        doctor_id=record.doctor_id,
+        temperature=record.temperature,
+        blood_pressure=record.blood_pressure,
+        oxygen_saturation=record.oxygen_saturation,
+        heart_rate=record.heart_rate,
+        diagnosis=record.diagnosis,
+        treatment=record.treatment,
+        notes=record.notes,
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+        deleted=getattr(record, 'deleted', None),
+        doctor=record.doctor,
+        patient=record.patient,
+        risks=risks
+    )
 
 # Ruta para obtener los registros médicos de un paciente específico
 @medicalRecordRouter.get("/patients/{patient_id}/medicalRecords", response_model=list[medicalRecordResponseSchema], tags=["medical_records"], status_code=200)
