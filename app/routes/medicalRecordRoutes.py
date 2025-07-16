@@ -6,6 +6,8 @@ from app.schemas.medicalRecordSchema import medicalRecordSchema, medicalRecordRe
 from app.schemas.riskSchema import RisksSchema
 from app.models.user import User
 from app.models.doctorPatient import DoctorPatient
+from app.models.medicalFile import MedicalFile
+from app.schemas.medicalFileSchema import MedicalFileResponseSchema
 
 from app.shared.config.database import SessionLocal
 from sqlalchemy.orm import Session, joinedload
@@ -19,41 +21,13 @@ medicalRecordRouter = APIRouter()
 # Ruta para crear un nuevo registro médico
 @medicalRecordRouter.post("/medicalRecords", response_model=medicalRecordResponseSchema, status_code=201, tags=["medical_records"])
 async def create_medical_record(medical_record: medicalRecordSchema, db: Session = Depends(get_db)):
-    patient = db.query(User).filter(User.id == medical_record.patient_id, User.role == 'patient').first()
-    if not patient:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Paciente no encontrado")
-    
-    # Verificar si se especificó a un doctor (y que no sea 0)
-    if medical_record.doctor_id and medical_record.doctor_id != 0:
-        # Verificar que el doctor existe
-        doctor = db.query(User).filter(User.id == medical_record.doctor_id, User.role == 'doctor').first()
-        if not doctor:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Doctor no encontrado")
-        
-        # Verificar si ya existe la relación doctor-paciente
-        existing_relation = db.query(DoctorPatient).filter(
-            DoctorPatient.doctor_id == medical_record.doctor_id,
-            DoctorPatient.patient_id == medical_record.patient_id
-        ).first()
-        # Si no existe la relación, crearla automáticamente
-        if not existing_relation:
-            try:
-                new_relation = DoctorPatient(
-                    doctor_id=medical_record.doctor_id, 
-                    patient_id=medical_record.patient_id
-                )
-                db.add(new_relation)
-                db.flush()  # Flush para detectar errores antes del commit final
-            except Exception as e:
-                db.rollback()
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-                                detail="Error al crear la relación doctor-paciente")
-    
-    # Crear el registro médico
+    # Validar que el expediente existe
+    medical_file = db.query(MedicalFile).filter(MedicalFile.id == medical_record.medical_file_id).first()
+    if not medical_file:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Expediente médico no encontrado")
+
     try:
         medical_record_data = medical_record.model_dump()
-        if medical_record_data.get('doctor_id') == 0:
-            medical_record_data['doctor_id'] = None
         new_record = MedicalRecord(**medical_record_data)
         db.add(new_record)
         db.commit() 
@@ -71,40 +45,21 @@ async def get_medical_records(db: Session = Depends(get_db)):
     return records
 
 # Ruta para obtener un registro médico por ID
-@medicalRecordRouter.get("/medicalRecords/{record_id}", response_model=medicalRecordWithRisksResponseSchema, tags=["medical_records"], status_code=200)
+@medicalRecordRouter.get("/medicalRecords/{record_id}", response_model=medicalRecordResponseSchema, tags=["medical_records"], status_code=200)
 async def get_medical_record(record_id: int, db: Session = Depends(get_db)):
     record = db.query(MedicalRecord).filter(MedicalRecord.id == record_id).first()
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Registro médico no encontrado")
 
-    risks = RisksSchema(
-        hipotermia=record.temperature < 35.0,
-        fiebre=record.temperature > 37.5,
-        arritmia=record.heart_rate < 60 or record.heart_rate > 100,
-        hipoxemia=record.oxygen_saturation < 90.0,
-        hipertension=record.blood_pressure > 140.0,
-        hipotension=record.blood_pressure < 90.0
-    )
+    # Obtener el expediente asociado
+    medical_file = db.query(MedicalFile).filter(MedicalFile.id == record.medical_file_id).first()
+    medical_file_data = MedicalFileResponseSchema.model_validate(medical_file) if medical_file else None
 
-    # Asegurarse de que doctor y patient sean los objetos completos
-    return medicalRecordWithRisksResponseSchema(
-        id=record.id,
-        patient_id=record.patient_id,
-        doctor_id=record.doctor_id,
-        temperature=record.temperature,
-        blood_pressure=record.blood_pressure,
-        oxygen_saturation=record.oxygen_saturation,
-        heart_rate=record.heart_rate,
-        diagnosis=record.diagnosis,
-        treatment=record.treatment,
-        notes=record.notes,
-        created_at=record.created_at,
-        updated_at=record.updated_at,
-        deleted=getattr(record, 'deleted', None),
-        doctor=record.doctor,
-        patient=record.patient,
-        risks=risks
-    )
+    # Convertir el registro a dict y anidar el expediente
+    record_dict = record.__dict__.copy()
+    record_dict.pop("_sa_instance_state", None)
+    record_dict["medical_file"] = medical_file_data
+    return record_dict
 
 # Ruta para obtener los registros médicos de un paciente específico
 @medicalRecordRouter.get("/patients/{patient_id}/medicalRecords", response_model=list[medicalRecordResponseSchema], tags=["medical_records"], status_code=200)

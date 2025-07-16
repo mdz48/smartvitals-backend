@@ -7,12 +7,14 @@ from app.shared.config.database import engine, Base, SessionLocal
 from app.routes.userRoutes import userRouter
 from app.routes.medicalRecordRoutes import medicalRecordRouter
 from app.routes.stadisticsRoutes import stadisticsRouter
+from app.routes.medicalFileRoutes import medicalFileRouter
 
 app = FastAPI()
 
 app.include_router(userRouter, tags=["users"])
 app.include_router(medicalRecordRouter, tags=["medical_records"])
 app.include_router(stadisticsRouter, tags=["stadistics"])
+app.include_router(medicalFileRouter, tags=["medical_files"])
 # CORS configuration
 app.add_middleware(
     CORSMiddleware,

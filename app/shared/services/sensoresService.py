@@ -5,25 +5,23 @@ from sqlalchemy.orm import Session
 from app.models.medicalRecord import MedicalRecord
 from app.shared.config.database import SessionLocal
 import pandas as pd
+import json
+from app.models.medicalFile import MedicalFile
 
 
 medicion_activa = {}  # {patient_id: True/False}
 
-# Estructura para acumular datos por paciente
+# Estructura para acumular datos por expediente
 data_buffer = defaultdict(lambda: {
     "temperature": [],
     "blood_pressure": [],
     "oxygen_saturation": [],
-    "heart_rate": [],
-    "doctor_id": None,
-    "patient_id": None
+    "heart_rate": []
 })
 
 # Llamar a esta función cada vez que recibas un dato de sensor
-def add_sensor_data(patient_id, doctor_id, temperature, blood_pressure, oxygen_saturation, heart_rate):
-    if not medicion_activa.get(patient_id, False):
-        return # No procesar si la medición no está activa
-    buf = data_buffer[patient_id]
+def add_sensor_data(medical_file_id, temperature, blood_pressure, oxygen_saturation, heart_rate):
+    buf = data_buffer[medical_file_id]
     if temperature is not None and temperature != 0:
         buf["temperature"].append(temperature)
     if blood_pressure is not None and blood_pressure != 0:
@@ -32,16 +30,14 @@ def add_sensor_data(patient_id, doctor_id, temperature, blood_pressure, oxygen_s
         buf["oxygen_saturation"].append(oxygen_saturation)
     if heart_rate is not None and heart_rate != 0:
         buf["heart_rate"].append(heart_rate)
-    buf["doctor_id"] = doctor_id
-    buf["patient_id"] = patient_id
 
 # Proceso que cada minuto promedia y guarda en la base de datos
 def process_and_save_records():
     while True:
-        time.sleep(2)  # Espera 1 minuto
-        for patient_id, buf in list(data_buffer.items()):
+        time.sleep(2)
+        for medical_file_id, buf in list(data_buffer.items()):
             if len(buf["temperature"]) == 0:
-                continue  # No hay datos nuevos
+                continue
 
             def safe_avg(lst):
                 values = [x for x in lst if x is not None]
@@ -52,37 +48,66 @@ def process_and_save_records():
             avg_ox = safe_avg(buf["oxygen_saturation"])
             avg_hr = safe_avg(buf["heart_rate"])
 
-            # Crea el registro médico
             db: Session = SessionLocal()
             try:
                 record = MedicalRecord(
-                    patient_id=buf["patient_id"],
-                    doctor_id=buf["doctor_id"],
+                    medical_file_id=medical_file_id,
                     temperature=avg_temp,
                     blood_pressure=avg_bp,
                     oxygen_saturation=avg_ox,
-                    heart_rate=avg_hr,
-                    diagnosis="",
-                    treatment="",
-                    notes=""
+                    heart_rate=avg_hr
                 )
                 db.add(record)
                 db.commit()
-                print(f"Expediente médico creado para paciente {patient_id}")
+                print(f"Registro médico creado para expediente {medical_file_id}")
+
+                # Notificar al WebSocket
+                try:
+                    from websocket import add_message_to_queue
+                    nuevo_registro = {
+                        "id": record.id,
+                        "medical_file_id": record.medical_file_id,
+                        "temperature": record.temperature,
+                        "blood_pressure": record.blood_pressure,
+                        "oxygen_saturation": record.oxygen_saturation,
+                        "heart_rate": record.heart_rate,
+                        "created_at": str(record.created_at)
+                    }
+                    # Aquí debes definir los user_id interesados. Por ejemplo, puedes obtenerlos del expediente:
+                    medical_file = db.query(MedicalFile).filter(MedicalFile.id == record.medical_file_id).first()
+                    target_users = []
+                    paciente_id = doctor_id = None
+                    if medical_file:
+                        if medical_file.patient_id:
+                            target_users.append(medical_file.patient_id)
+                            paciente_id = medical_file.patient_id
+                        if medical_file.doctor_id:
+                            target_users.append(medical_file.doctor_id)
+                            doctor_id = medical_file.doctor_id
+                    add_message_to_queue(
+                        "targeted",
+                        json.dumps({
+                            "type": "nuevo_registro",
+                            "medical_file_id": record.medical_file_id,
+                            "record": nuevo_registro,
+                            "paciente_id": paciente_id,
+                            "doctor_id": doctor_id
+                        }),
+                        target_users=target_users
+                    )
+                except Exception as e:
+                    print(f"Error notificando al WebSocket: {e}")
             except Exception as e:
                 db.rollback()
                 print(f"Error al guardar registro médico: {e}")
             finally:
                 db.close()
 
-            # Limpia el buffer de ese paciente
-            data_buffer[patient_id] = {
+            data_buffer[medical_file_id] = {
                 "temperature": [],
                 "blood_pressure": [],
                 "oxygen_saturation": [],
-                "heart_rate": [],
-                "doctor_id": buf["doctor_id"],
-                "patient_id": buf["patient_id"]
+                "heart_rate": []
             }
             
 def validar_datos(temperature, blood_pressure, oxygen_saturation, heart_rate):

@@ -10,6 +10,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 import queue
 from app.shared.services.sensoresService import add_sensor_data, process_and_save_records, validar_datos, medicion_activa
+from app.models.medicalFile import MedicalFile
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -121,9 +122,30 @@ def rabbitmq_consumer():
                     try:
                         data = json.loads(body)
                         logger.info(f"Mensaje recibido en topic {topic_name}: {data}")
-                        
-                        # Mensaje para broadcast
-                        broadcast_message = json.dumps({"topic": topic_name, "data": data})
+
+                        # Buscar el expediente para agregar patient_id y doctor_id
+                        medical_file_id = data.get("medical_file_id")
+                        patient_id = doctor_id = None
+                        if medical_file_id:
+                            from app.shared.config.database import SessionLocal
+                            db = SessionLocal()
+                            try:
+                                medical_file = db.query(MedicalFile).filter(MedicalFile.id == medical_file_id).first()
+                                if medical_file:
+                                    patient_id = medical_file.patient_id
+                                    doctor_id = medical_file.doctor_id
+                            finally:
+                                db.close()
+
+                        # Mensaje para broadcast (con patient_id y doctor_id)
+                        broadcast_message = json.dumps({
+                            "topic": topic_name,
+                            "data": {
+                                **data,
+                                "patient_id": patient_id,
+                                "doctor_id": doctor_id
+                            }
+                        })
                         add_message_to_queue("broadcast", broadcast_message)
                         
                         # Validar datos y enviar alertas si es necesario
@@ -154,8 +176,7 @@ def rabbitmq_consumer():
                         
                         # Guardar datos en base de datos
                         add_sensor_data(
-                            data.get("patient_id"),
-                            data.get("doctor_id"),
+                            data.get("medical_file_id"),
                             data.get("temperature"),
                             data.get("blood_pressure"),
                             data.get("oxygen_saturation"),
@@ -220,6 +241,7 @@ async def websocket_endpoint(websocket: WebSocket):
         # Esperar identificación del cliente
         msg = await websocket.receive_text()
         data = json.loads(msg)
+        print("[WebSocket] Mensaje de identificación recibido del frontend:", data)
         user_id = data.get("user_id")
         rol = data.get("rol")  # "paciente" o "doctor"
         
@@ -232,24 +254,37 @@ async def websocket_endpoint(websocket: WebSocket):
         # Enviar configuración a la Raspberry Pi si es paciente
         if rol == "paciente":
             user_config = {
-                "patient_id": int(user_id),
-                "doctor_id": data.get("doctor_id"),
+                "user_id": int(user_id),
                 "timestamp": time.time()
             }
+            print("[WebSocket] Configuración inicial enviada a Raspberry Pi:", user_config)
             await send_raspberry_config(user_config)
         
         # Bucle principal de manejo de mensajes
         while True:
             msg = await websocket.receive_text()
+            data = json.loads(msg)
+            print("[WebSocket] Mensaje recibido del frontend:", data)
             try:
-                data = json.loads(msg)
                 
                 if data.get("action") == "start":
-                    patient_id = data["patient_id"]
-                    medicion_activa[patient_id] = True
+                    # Acepta tanto medical_file_id como medicalFileId
+                    medical_file_id = data.get("medical_file_id") or data.get("medicalFileId")
+                    print(f"[WebSocket] Valor de medical_file_id recibido: {medical_file_id}")
+                    # Enviar configuración a la Raspberry con medical_file_id
+                    user_config = {
+                        "medical_file_id": medical_file_id,
+                        "timestamp": time.time()
+                    }
+                    print("[WebSocket] Configuración enviada a Raspberry Pi:", user_config)
+                    await send_raspberry_config(user_config)
+                    medicion_activa[medical_file_id] = True
+                    from app.shared.services.sensoresService import data_buffer
+                    # Inicializar el buffer para ese expediente
+                    data_buffer[medical_file_id]  # Se inicializa por defaultdict
                     await websocket.send_text(json.dumps({
                         "type": "info",
-                        "message": f"Medición iniciada para paciente {patient_id}"
+                        "message": f"Medición iniciada para expediente {medical_file_id}"
                     }))
                     
                 elif data.get("action") == "stop":

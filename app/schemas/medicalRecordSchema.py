@@ -5,15 +5,11 @@ from app.schemas.userSchema import userResponseSchema
 from app.schemas.riskSchema import RisksSchema
 
 class medicalRecordSchema(BaseModel):
-    patient_id: int
-    doctor_id: Optional[int] = None
+    medical_file_id: int
     temperature: float
     blood_pressure: float
     oxygen_saturation: float
     heart_rate: float
-    diagnosis: str
-    treatment: str
-    notes: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
     
@@ -22,8 +18,7 @@ class medicalRecordResponseSchema(medicalRecordSchema):
     created_at: datetime
     updated_at: datetime
     deleted: Optional[datetime] = None
-    doctor: Optional[userResponseSchema] = None
-    patient: userResponseSchema
+    medical_file_id: int
 
     model_config = ConfigDict(from_attributes=True)
     
