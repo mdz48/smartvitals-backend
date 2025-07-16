@@ -7,6 +7,7 @@ from app.shared.config.database import engine, Base, SessionLocal
 from app.routes.userRoutes import userRouter
 from app.routes.medicalRecordRoutes import medicalRecordRouter
 from app.routes.stadisticsRoutes import stadisticsRouter
+from app.models.recordSensorData import RecordSensorData
 
 app = FastAPI()
 

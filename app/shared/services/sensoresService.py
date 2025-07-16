@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.models.medicalRecord import MedicalRecord
 from app.shared.config.database import SessionLocal
 import pandas as pd
+from app.models.recordSensorData import RecordSensorData
 
 
 medicion_activa = {}  # {patient_id: True/False}
@@ -38,9 +39,11 @@ def add_sensor_data(patient_id, doctor_id, temperature, blood_pressure, oxygen_s
 # Proceso que cada minuto promedia y guarda en la base de datos
 def process_and_save_records():
     while True:
-        time.sleep(2)  # Espera 1 minuto
+        time.sleep(10)  # Espera 1 minuto
         for patient_id, buf in list(data_buffer.items()):
+            print(f"[DEBUG] Procesando buffer para paciente {patient_id}: {buf}")
             if len(buf["temperature"]) == 0:
+                print(f"[DEBUG] No hay datos de temperatura para paciente {patient_id}, se omite.")
                 continue  # No hay datos nuevos
 
             def safe_avg(lst):
@@ -52,7 +55,9 @@ def process_and_save_records():
             avg_ox = safe_avg(buf["oxygen_saturation"])
             avg_hr = safe_avg(buf["heart_rate"])
 
-            # Crea el registro médico
+            print(f"[DEBUG] Promedios calculados para paciente {patient_id}: temp={avg_temp}, bp={avg_bp}, ox={avg_ox}, hr={avg_hr}")
+            print(f"[DEBUG] Intentando crear MedicalRecord con: patient_id={buf['patient_id']}, doctor_id={buf['doctor_id']}")
+
             db: Session = SessionLocal()
             try:
                 record = MedicalRecord(
@@ -68,10 +73,20 @@ def process_and_save_records():
                 )
                 db.add(record)
                 db.commit()
+                db.refresh(record)
                 print(f"Expediente médico creado para paciente {patient_id}")
+
+                # Asociar los RecordSensorData crudos a este MedicalRecord
+                updated = db.query(RecordSensorData).filter(
+                    RecordSensorData.patient_id == buf["patient_id"],
+                    RecordSensorData.doctor_id == buf["doctor_id"],
+                    RecordSensorData.medical_record_id == None
+                ).update({RecordSensorData.medical_record_id: record.id}, synchronize_session=False)
+                db.commit()
+                print(f"[DEBUG] Se asociaron {updated} registros de RecordSensorData al MedicalRecord {record.id}")
             except Exception as e:
                 db.rollback()
-                print(f"Error al guardar registro médico: {e}")
+                print(f"[ERROR] Error al guardar registro médico para paciente {patient_id}: {e}")
             finally:
                 db.close()
 

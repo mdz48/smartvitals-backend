@@ -49,19 +49,19 @@ def generate_varying_data(cycle):
     
     return {
         'temperatura': {
-            'patient_id': 8,
+            'patient_id': 1,
             'doctor_id': 2,
             'temperature': round(base_temp, 1),
             'timestamp': time.time()
         },
         'oxigeno': {
-            'patient_id': 8,
-            'doctor_id': 3,
+            'patient_id': 1,
+            'doctor_id': 2,
             'oxygen_saturation': round(base_oxygen, 1),
             'timestamp': time.time()
         },
         'ritmo_cardiaco': {
-            'patient_id': 8,
+            'patient_id': 1,
             'doctor_id': 2,
             'heart_rate': round(base_heart_rate, 1),
             'timestamp': time.time()
