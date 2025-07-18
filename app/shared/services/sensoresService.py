@@ -21,7 +21,28 @@ data_buffer = defaultdict(lambda: {
 })
 
 # Llamar a esta función cada vez que recibas un dato de sensor
+def save_record_sensor_data(patient_id, doctor_id, temperature, blood_pressure, oxygen_saturation, heart_rate, medical_record_id=None):
+    db = SessionLocal()
+    # try:
+    #     raw_data = RecordSensorData(
+    #         patient_id=patient_id,
+    #         doctor_id=doctor_id,
+    #         temperature=temperature,
+    #         blood_pressure=blood_pressure,
+    #         oxygen_saturation=oxygen_saturation,
+    #         heart_rate=heart_rate,
+    #         medical_record_id=medical_record_id
+    #     )
+    #     db.add(raw_data)
+    #     db.commit()
+    # except Exception as e:
+    #     db.rollback()
+    #     print(f"Error guardando RecordSensorData: {e}")
+    # finally:
+    #     db.close()
+
 def add_sensor_data(patient_id, doctor_id, temperature, blood_pressure, oxygen_saturation, heart_rate):
+    save_record_sensor_data(patient_id, doctor_id, temperature, blood_pressure, oxygen_saturation, heart_rate)
     if not medicion_activa.get(patient_id, False):
         return # No procesar si la medición no está activa
     buf = data_buffer[patient_id]
@@ -41,9 +62,7 @@ def process_and_save_records():
     while True:
         time.sleep(10)  # Espera 1 minuto
         for patient_id, buf in list(data_buffer.items()):
-            print(f"[DEBUG] Procesando buffer para paciente {patient_id}: {buf}")
             if len(buf["temperature"]) == 0:
-                print(f"[DEBUG] No hay datos de temperatura para paciente {patient_id}, se omite.")
                 continue  # No hay datos nuevos
 
             def safe_avg(lst):
@@ -54,9 +73,6 @@ def process_and_save_records():
             avg_bp = safe_avg(buf["blood_pressure"])
             avg_ox = safe_avg(buf["oxygen_saturation"])
             avg_hr = safe_avg(buf["heart_rate"])
-
-            print(f"[DEBUG] Promedios calculados para paciente {patient_id}: temp={avg_temp}, bp={avg_bp}, ox={avg_ox}, hr={avg_hr}")
-            print(f"[DEBUG] Intentando crear MedicalRecord con: patient_id={buf['patient_id']}, doctor_id={buf['doctor_id']}")
 
             db: Session = SessionLocal()
             try:
@@ -77,16 +93,15 @@ def process_and_save_records():
                 print(f"Expediente médico creado para paciente {patient_id}")
 
                 # Asociar los RecordSensorData crudos a este MedicalRecord
-                updated = db.query(RecordSensorData).filter(
-                    RecordSensorData.patient_id == buf["patient_id"],
-                    RecordSensorData.doctor_id == buf["doctor_id"],
-                    RecordSensorData.medical_record_id == None
-                ).update({RecordSensorData.medical_record_id: record.id}, synchronize_session=False)
-                db.commit()
-                print(f"[DEBUG] Se asociaron {updated} registros de RecordSensorData al MedicalRecord {record.id}")
+                # db.query(RecordSensorData).filter(
+                #     RecordSensorData.patient_id == buf["patient_id"],
+                #     RecordSensorData.doctor_id == buf["doctor_id"],
+                #     RecordSensorData.medical_record_id == None
+                # ).update({RecordSensorData.medical_record_id: record.id})
+                # db.commit()
             except Exception as e:
                 db.rollback()
-                print(f"[ERROR] Error al guardar registro médico para paciente {patient_id}: {e}")
+                print(f"Error al guardar registro médico: {e}")
             finally:
                 db.close()
 
