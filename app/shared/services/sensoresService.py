@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.models.medicalRecord import MedicalRecord
 from app.shared.config.database import SessionLocal
 import pandas as pd
+from app.models.recordSensorData import RecordSensorData
 
 
 medicion_activa = {}  # {patient_id: True/False}
@@ -20,7 +21,28 @@ data_buffer = defaultdict(lambda: {
 })
 
 # Llamar a esta función cada vez que recibas un dato de sensor
+def save_record_sensor_data(patient_id, doctor_id, temperature, blood_pressure, oxygen_saturation, heart_rate, medical_record_id=None):
+    db = SessionLocal()
+    # try:
+    #     raw_data = RecordSensorData(
+    #         patient_id=patient_id,
+    #         doctor_id=doctor_id,
+    #         temperature=temperature,
+    #         blood_pressure=blood_pressure,
+    #         oxygen_saturation=oxygen_saturation,
+    #         heart_rate=heart_rate,
+    #         medical_record_id=medical_record_id
+    #     )
+    #     db.add(raw_data)
+    #     db.commit()
+    # except Exception as e:
+    #     db.rollback()
+    #     print(f"Error guardando RecordSensorData: {e}")
+    # finally:
+    #     db.close()
+
 def add_sensor_data(patient_id, doctor_id, temperature, blood_pressure, oxygen_saturation, heart_rate):
+    save_record_sensor_data(patient_id, doctor_id, temperature, blood_pressure, oxygen_saturation, heart_rate)
     if not medicion_activa.get(patient_id, False):
         return # No procesar si la medición no está activa
     buf = data_buffer[patient_id]
@@ -38,7 +60,7 @@ def add_sensor_data(patient_id, doctor_id, temperature, blood_pressure, oxygen_s
 # Proceso que cada minuto promedia y guarda en la base de datos
 def process_and_save_records():
     while True:
-        time.sleep(2)  # Espera 1 minuto
+        time.sleep(10)  # Espera 1 minuto
         for patient_id, buf in list(data_buffer.items()):
             if len(buf["temperature"]) == 0:
                 continue  # No hay datos nuevos
@@ -52,7 +74,6 @@ def process_and_save_records():
             avg_ox = safe_avg(buf["oxygen_saturation"])
             avg_hr = safe_avg(buf["heart_rate"])
 
-            # Crea el registro médico
             db: Session = SessionLocal()
             try:
                 record = MedicalRecord(
@@ -68,7 +89,16 @@ def process_and_save_records():
                 )
                 db.add(record)
                 db.commit()
+                db.refresh(record)
                 print(f"Expediente médico creado para paciente {patient_id}")
+
+                # Asociar los RecordSensorData crudos a este MedicalRecord
+                # db.query(RecordSensorData).filter(
+                #     RecordSensorData.patient_id == buf["patient_id"],
+                #     RecordSensorData.doctor_id == buf["doctor_id"],
+                #     RecordSensorData.medical_record_id == None
+                # ).update({RecordSensorData.medical_record_id: record.id})
+                # db.commit()
             except Exception as e:
                 db.rollback()
                 print(f"Error al guardar registro médico: {e}")

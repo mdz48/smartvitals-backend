@@ -13,6 +13,7 @@ from app.shared.config.database import get_db
 from app.shared.config.middleware.security import get_current_user
 
 from app.shared.services.stadisticsService import get_medical_record_statistics
+from app.shared.utils.riskService import detectar_riesgos
 
 medicalRecordRouter = APIRouter()
 
@@ -77,14 +78,7 @@ async def get_medical_record(record_id: int, db: Session = Depends(get_db)):
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Registro médico no encontrado")
 
-    risks = RisksSchema(
-        hipotermia=record.temperature < 35.0,
-        fiebre=record.temperature > 37.5,
-        arritmia=record.heart_rate < 60 or record.heart_rate > 100,
-        hipoxemia=record.oxygen_saturation < 90.0,
-        hipertension=record.blood_pressure > 140.0,
-        hipotension=record.blood_pressure < 90.0
-    )
+    risks = detectar_riesgos(record)
 
     # Asegurarse de que doctor y patient sean los objetos completos
     return medicalRecordWithRisksResponseSchema(
