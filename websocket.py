@@ -229,15 +229,6 @@ async def websocket_endpoint(websocket: WebSocket):
         
         logger.info(f"Cliente conectado: user_id={user_id}, rol={rol}")
         
-        # Enviar configuración a la Raspberry Pi si es paciente
-        if rol == "paciente":
-            user_config = {
-                "patient_id": int(user_id),
-                "doctor_id": data.get("doctor_id"),
-                "timestamp": time.time()
-            }
-            await send_raspberry_config(user_config)
-        
         # Bucle principal de manejo de mensajes
         while True:
             msg = await websocket.receive_text()
@@ -247,18 +238,40 @@ async def websocket_endpoint(websocket: WebSocket):
                 if data.get("action") == "start":
                     patient_id = data["patient_id"]
                     medicion_activa[patient_id] = True
+                    
+                    # Enviar configuración al Raspberry Pi
+                    user_config = {
+                        "patient_id": int(patient_id),
+                        "doctor_id": data.get("doctor_id"),
+                        "timestamp": time.time(),
+                        "action": "start"
+                    }
+                    await send_raspberry_config(user_config)
+                    
                     await websocket.send_text(json.dumps({
                         "type": "info",
                         "message": f"Medición iniciada para paciente {patient_id}"
                     }))
+                    logger.info(f"Medición iniciada para paciente {patient_id}")
                     
                 elif data.get("action") == "stop":
                     patient_id = data["patient_id"]
                     medicion_activa[patient_id] = False
+                    
+                    # Enviar configuración de stop al Raspberry Pi
+                    user_config = {
+                        "patient_id": int(patient_id),
+                        "doctor_id": data.get("doctor_id"),
+                        "timestamp": time.time(),
+                        "action": "stop"
+                    }
+                    await send_raspberry_config(user_config)
+                    
                     await websocket.send_text(json.dumps({
                         "type": "info",
                         "message": f"Medición detenida para paciente {patient_id}"
                     }))
+                    logger.info(f"Medición detenida para paciente {patient_id}")
                     
                 elif data.get("action") == "doctor_config":
                     # Nueva acción para configuración de doctor
