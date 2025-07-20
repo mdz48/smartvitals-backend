@@ -26,7 +26,7 @@ RABBITMQ_HOST = os.getenv('RABBITMQ_HOST')
 RABBITMQ_USER = os.getenv('RABBITMQ_USER')
 RABBITMQ_PASSWORD = os.getenv('RABBITMQ_PASSWORD')
 EXCHANGE = 'amq.topic'  
-TOPICS = ['temperatura', 'oxigeno', 'presion', 'ritmo_cardiaco', 'sensor']
+TOPICS = ['temperatura', 'oxigeno', 'presion', 'ritmo_cardiaco', 'sensor', 'ecg']
 
 # Cola thread-safe para comunicación entre hilos (usando queue estándar)
 message_queue = queue.Queue()
