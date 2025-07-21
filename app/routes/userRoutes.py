@@ -276,3 +276,11 @@ async def remove_patient_from_doctor(doctor_id: int, patient_id: int, db: Sessio
     db.commit()
     
     return {"detail": "Paciente eliminado del doctor exitosamente"}
+
+# Get user by email
+@userRouter.get("/users/email/{email}", response_model=userResponseSchema, tags=["users"], status_code=200)
+async def get_user_by_email(email: str, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+    return user

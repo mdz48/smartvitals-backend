@@ -4,23 +4,23 @@ from typing import Optional
 from app.models.interfaces import userRole, userGender
 
 class userSchema(BaseModel):
-    name: str | None = "mdz" # SOLO PARA DESARROLLO, NO USAR EN PRODUCCIÓN!!!
-    lastname: str | None = "none" # SOLO PARA DESARROLLO, NO USAR EN PRODUCCIÓN!!!
-    email: EmailStr | None = "1@1.com" # SOLO PARA DESARROLLO, NO USAR EN PRODUCCIÓN!!!
-    age: int | None = 20 # SOLO PARA DESARROLLO, NO USAR EN PRODUCCIÓN!!!
-    gender: userGender | None = userGender.MALE # SOLO PARA DESARROLLO, NO USAR EN PRODUCCIÓN!!!
-    pregnant: bool | None = False # SOLO PARA DESARROLLO, NO USAR EN PRODUCCIÓN!!!
-    role: userRole | None = userRole.PATIENT # SOLO PARA DESARROLLO, NO USAR EN PRODUCCIÓN!!!
+    name: str 
+    lastname: str 
+    email: EmailStr 
+    age: int 
+    gender: userGender 
+    pregnant: bool | None = False 
+    role: userRole 
     profile_picture: str | None = "https://smartvitals-bucket.s3.us-east-1.amazonaws.com/default_profile_picture.png" 
     model_config = ConfigDict(from_attributes=True)
         
     
 class userLoginSchema(BaseModel):
-    email: EmailStr | None = "1@1.com" # SOLO PARA DESARROLLO, NO USAR EN PRODUCCIÓN!!!
-    password: str | None = "1" # SOLO PARA DESARROLLO, NO USAR EN PRODUCCIÓN!!!
+    email: EmailStr 
+    password: str 
 
 class userCreateSchema(userSchema):
-    password: str | None = "1" # SOLO PARA DESARROLLO, NO USAR EN PRODUCCIÓN!!!
+    password: str 
     
 class userResponseSchema(userSchema):
     id: int
