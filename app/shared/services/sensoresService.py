@@ -57,7 +57,8 @@ def add_sensor_data(patient_id, doctor_id, temperature, blood_pressure, oxygen_s
     buf = data_buffer[patient_id]
     if temperature is not None and temperature != 0:
         buf["temperature"].append(temperature)
-    if blood_pressure is not None and blood_pressure != 0:
+    # Para presión arterial, aceptar valores aunque contengan 0 (detección parcial)
+    if blood_pressure is not None:
         buf["blood_pressure"].append(blood_pressure)
     if oxygen_saturation is not None and oxygen_saturation != 0:
         buf["oxygen_saturation"].append(oxygen_saturation)
@@ -78,8 +79,33 @@ def process_and_save_records():
                 values = [x for x in lst if x is not None]
                 return sum(values) / len(values) if values else 0
 
+            def safe_avg_blood_pressure(bp_list):
+                """Promedio especial para presión arterial que maneja valores parciales"""
+                if not bp_list:
+                    return 0
+                
+                sistolica_vals = []
+                diastolica_vals = []
+                
+                for bp in bp_list:
+                    if bp is not None:
+                        try:
+                            sis, dia = map(float, str(bp).split('/'))
+                            if sis > 0:
+                                sistolica_vals.append(sis)
+                            if dia > 0:
+                                diastolica_vals.append(dia)
+                        except:
+                            continue
+                
+                # Calcular promedios
+                avg_sis = sum(sistolica_vals) / len(sistolica_vals) if sistolica_vals else 0
+                avg_dia = sum(diastolica_vals) / len(diastolica_vals) if diastolica_vals else 0
+                
+                return f"{avg_sis:.0f}/{avg_dia:.0f}"
+
             avg_temp = safe_avg(buf["temperature"])
-            avg_bp = safe_avg(buf["blood_pressure"])
+            avg_bp = safe_avg_blood_pressure(buf["blood_pressure"])
             avg_ox = safe_avg(buf["oxygen_saturation"])
             avg_hr = safe_avg(buf["heart_rate"])
 
@@ -163,10 +189,26 @@ def validar_datos(temperature, blood_pressure, oxygen_saturation, heart_rate):
     if blood_pressure is not None:
         try:
             sistolica, diastolica = map(float, str(blood_pressure).split('/'))
-            if sistolica < 90 or diastolica < 60:
-                alertas.append("Hipotensión: Presión arterial baja")
-            elif sistolica > 140 or diastolica > 90:
-                alertas.append("Hipertensión: Presión arterial alta")
+            
+            # Validar solo los valores detectados (diferentes de 0)
+            if sistolica > 0 and diastolica > 0:
+                # Ambos valores detectados
+                if sistolica < 90 or diastolica < 60:
+                    alertas.append("Hipotensión: Presión arterial baja")
+                elif sistolica > 140 or diastolica > 90:
+                    alertas.append("Hipertensión: Presión arterial alta")
+            elif sistolica > 0:
+                # Solo sistólica detectada
+                if sistolica < 90:
+                    alertas.append("Hipotensión sistólica: Presión sistólica baja")
+                elif sistolica > 140:
+                    alertas.append("Hipertensión sistólica: Presión sistólica alta")
+            elif diastolica > 0:
+                # Solo diastólica detectada
+                if diastolica < 60:
+                    alertas.append("Hipotensión diastólica: Presión diastólica baja")
+                elif diastolica > 90:
+                    alertas.append("Hipertensión diastólica: Presión diastólica alta")
         except Exception:
             pass  # Si el formato no es correcto, ignora
 
