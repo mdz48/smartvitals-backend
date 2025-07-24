@@ -9,7 +9,7 @@ import threading
 import logging
 from concurrent.futures import ThreadPoolExecutor
 import queue
-from app.shared.services.sensoresService import add_sensor_data, process_and_save_records, validar_datos, medicion_activa
+from app.shared.services.sensoresService import add_sensor_data, process_and_save_records, validar_datos, medicion_activa, set_notification_callback
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -316,6 +316,9 @@ async def startup_event():
     # Guardar referencia al event loop principal
     global main_loop
     main_loop = asyncio.get_event_loop()
+    
+    # Configurar el callback de notificación para sensoresService
+    set_notification_callback(add_message_to_queue)
     
     # Iniciar el sender de WebSocket
     asyncio.create_task(websocket_sender())

@@ -40,3 +40,4 @@ cryptography
 numpy
 matplotlib
 pandas
+scipy

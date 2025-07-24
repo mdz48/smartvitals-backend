@@ -1,5 +1,6 @@
 import threading
 import time
+import json
 from collections import defaultdict
 from sqlalchemy.orm import Session
 from app.models.medicalRecord import MedicalRecord
@@ -9,6 +10,14 @@ from app.models.recordSensorData import RecordSensorData
 
 
 medicion_activa = {}  # {patient_id: True/False}
+
+# Variable global para la función de notificación WebSocket
+notification_callback = None
+
+def set_notification_callback(callback_func):
+    """Configura la función de callback para notificaciones WebSocket"""
+    global notification_callback
+    notification_callback = callback_func
 
 # Estructura para acumular datos por paciente
 data_buffer = defaultdict(lambda: {
@@ -60,7 +69,7 @@ def add_sensor_data(patient_id, doctor_id, temperature, blood_pressure, oxygen_s
 # Proceso que cada minuto promedia y guarda en la base de datos
 def process_and_save_records():
     while True:
-        time.sleep(10)  # Espera 1 minuto
+        time.sleep(60)  # Espera 1 minuto
         for patient_id, buf in list(data_buffer.items()):
             if len(buf["temperature"]) == 0:
                 continue  # No hay datos nuevos
@@ -91,6 +100,27 @@ def process_and_save_records():
                 db.commit()
                 db.refresh(record)
                 print(f"Expediente médico creado para paciente {patient_id}")
+
+                # Enviar notificación WebSocket sobre la creación del expediente
+                if notification_callback:
+                    notification_message = json.dumps({
+                        "type": "medical_record_created",
+                        "patient_id": buf["patient_id"],
+                        "doctor_id": buf["doctor_id"],
+                        "record_id": record.id,
+                        "timestamp": time.time(),
+                        "data": {
+                            "temperature": avg_temp,
+                            "blood_pressure": avg_bp,
+                            "oxygen_saturation": avg_ox,
+                            "heart_rate": avg_hr
+                        },
+                        "message": f"Nuevo expediente médico creado para el paciente {patient_id}"
+                    })
+                    
+                    # Enviar notificación a usuarios específicos (paciente y doctor)
+                    target_users = [buf["patient_id"], buf["doctor_id"]]
+                    notification_callback("targeted", notification_message, target_users)
 
                 # Asociar los RecordSensorData crudos a este MedicalRecord
                 # db.query(RecordSensorData).filter(

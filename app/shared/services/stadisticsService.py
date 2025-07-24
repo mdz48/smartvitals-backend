@@ -8,6 +8,8 @@ from app.models.medicalRecord import MedicalRecord
 from app.schemas.riskSchema import RisksSchema
 from app.models.user import User
 from app.shared.utils.riskService import get_heart_rate_range, get_respiratory_rate_range
+from scipy.stats import pearsonr
+import pandas as pd
 
 async def get_medical_record_statistics(db: Session, medical_records: List[MedicalRecord]) -> Dict[str, Any]:
     """
@@ -134,8 +136,56 @@ async def get_medical_record_statistics(db: Session, medical_records: List[Medic
         ),
     }
     
+    # --- SECCION DE CORRELACIONES Y PROBABILIDADES COMBINADAS ---
+
+    # Calcular correlaciones entre variables principales
+    # correlaciones = {}
+    # try:
+    #     data = {
+    #         "temperatura": [r.temperature for r in medical_records],
+    #         "presion_arterial": [r.blood_pressure for r in medical_records],
+    #         "saturacion_oxigeno": [r.oxygen_saturation for r in medical_records],
+    #         "frecuencia_cardiaca": [r.heart_rate for r in medical_records],
+    #     }
+    #     df = pd.DataFrame(data)
+    #     corr_matrix = df.corr(method="pearson")
+    #     # Reemplazar NaN e infinitos por None para compatibilidad JSON
+    #     corr_matrix = corr_matrix.replace([np.nan, np.inf, -np.inf], None)
+    #     correlaciones = corr_matrix.to_dict()
+    # except Exception as e:
+    #     correlaciones = {"error": str(e)}
+
+    # Probabilidad de agitación: fiebre + taquicardia
+    def probabilidad_coincidencia(cond1, cond2, registros):
+        if not registros:
+            return 0.0
+        return round(100 * sum(1 for r in registros if cond1(r) and cond2(r)) / len(registros), 2)
+
+    prob_agitacion = probabilidad_coincidencia(
+        lambda r: r.temperature is not None and r.temperature > 38.0,
+        lambda r: r.heart_rate is not None and r.heart_rate > get_heart_rate_range(r.patient.age)[1],
+        medical_records
+    )
+    # Ejemplo extendido: shock (hipotensión + taquicardia + baja saturación)
+    def condicion_shock(r):
+        return (
+            r.blood_pressure is not None and r.blood_pressure < 90.0 and
+            r.heart_rate is not None and r.heart_rate > get_heart_rate_range(r.patient.age)[1] and
+            r.oxygen_saturation is not None and r.oxygen_saturation < 90.0
+        )
+    prob_shock = calcular_probabilidad(condicion_shock, medical_records)
+
+    # Puedes agregar más combinaciones clínicas aquí
+
+    combinaciones_clinicas = {
+        "probabilidad_agitacion": prob_agitacion,
+        "probabilidad_shock": prob_shock,
+    }
+    
     return {
     "estadisticas": stats,
     "probabilidades_riesgo": risk_probabilities,
     "parametros": parametros,
+    # "correlaciones": correlaciones,
+    "combinaciones_clinicas": combinaciones_clinicas,
     }
