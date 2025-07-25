@@ -11,9 +11,9 @@ from app.models.recordSensorData import RecordSensorData
 
 app = FastAPI()
 
-app.include_router(userRouter, tags=["users"])
-app.include_router(medicalRecordRouter, tags=["medical_records"])
-app.include_router(stadisticsRouter, tags=["stadistics"])
+app.include_router(userRouter, prefix="/api", tags=["users"])
+app.include_router(medicalRecordRouter, prefix="/api", tags=["medical_records"])
+app.include_router(stadisticsRouter, prefix="/api", tags=["stadistics"])
 # CORS configuration
 app.add_middleware(
     CORSMiddleware,
