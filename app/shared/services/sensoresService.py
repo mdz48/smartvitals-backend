@@ -1,5 +1,6 @@
 import threading
 import time
+import json
 from collections import defaultdict
 from sqlalchemy.orm import Session
 from app.models.medicalRecord import MedicalRecord
@@ -9,6 +10,14 @@ from app.models.recordSensorData import RecordSensorData
 
 
 medicion_activa = {}  # {patient_id: True/False}
+
+# Variable global para la función de notificación WebSocket
+notification_callback = None
+
+def set_notification_callback(callback_func):
+    """Configura la función de callback para notificaciones WebSocket"""
+    global notification_callback
+    notification_callback = callback_func
 
 # Estructura para acumular datos por paciente
 data_buffer = defaultdict(lambda: {
@@ -48,7 +57,8 @@ def add_sensor_data(patient_id, doctor_id, temperature, blood_pressure, oxygen_s
     buf = data_buffer[patient_id]
     if temperature is not None and temperature != 0:
         buf["temperature"].append(temperature)
-    if blood_pressure is not None and blood_pressure != 0:
+    # Para presión arterial, aceptar valores aunque contengan 0 (detección parcial)
+    if blood_pressure is not None:
         buf["blood_pressure"].append(blood_pressure)
     if oxygen_saturation is not None and oxygen_saturation != 0:
         buf["oxygen_saturation"].append(oxygen_saturation)
@@ -60,7 +70,7 @@ def add_sensor_data(patient_id, doctor_id, temperature, blood_pressure, oxygen_s
 # Proceso que cada minuto promedia y guarda en la base de datos
 def process_and_save_records():
     while True:
-        time.sleep(10)  # Espera 1 minuto
+        time.sleep(60)  # Espera 1 minuto
         for patient_id, buf in list(data_buffer.items()):
             if len(buf["temperature"]) == 0:
                 continue  # No hay datos nuevos
@@ -69,8 +79,33 @@ def process_and_save_records():
                 values = [x for x in lst if x is not None]
                 return sum(values) / len(values) if values else 0
 
+            def safe_avg_blood_pressure(bp_list):
+                """Promedio especial para presión arterial que maneja valores parciales"""
+                if not bp_list:
+                    return 0
+                
+                sistolica_vals = []
+                diastolica_vals = []
+                
+                for bp in bp_list:
+                    if bp is not None:
+                        try:
+                            sis, dia = map(float, str(bp).split('/'))
+                            if sis > 0:
+                                sistolica_vals.append(sis)
+                            if dia > 0:
+                                diastolica_vals.append(dia)
+                        except:
+                            continue
+                
+                # Calcular promedios
+                avg_sis = sum(sistolica_vals) / len(sistolica_vals) if sistolica_vals else 0
+                avg_dia = sum(diastolica_vals) / len(diastolica_vals) if diastolica_vals else 0
+                
+                return f"{avg_sis:.0f}/{avg_dia:.0f}"
+
             avg_temp = safe_avg(buf["temperature"])
-            avg_bp = safe_avg(buf["blood_pressure"])
+            avg_bp = safe_avg_blood_pressure(buf["blood_pressure"])
             avg_ox = safe_avg(buf["oxygen_saturation"])
             avg_hr = safe_avg(buf["heart_rate"])
 
@@ -91,6 +126,27 @@ def process_and_save_records():
                 db.commit()
                 db.refresh(record)
                 print(f"Expediente médico creado para paciente {patient_id}")
+
+                # Enviar notificación WebSocket sobre la creación del expediente
+                if notification_callback:
+                    notification_message = json.dumps({
+                        "type": "medical_record_created",
+                        "patient_id": buf["patient_id"],
+                        "doctor_id": buf["doctor_id"],
+                        "record_id": record.id,
+                        "timestamp": time.time(),
+                        "data": {
+                            "temperature": avg_temp,
+                            "blood_pressure": avg_bp,
+                            "oxygen_saturation": avg_ox,
+                            "heart_rate": avg_hr
+                        },
+                        "message": f"Nuevo expediente médico creado para el paciente {patient_id}"
+                    })
+                    
+                    # Enviar notificación a usuarios específicos (paciente y doctor)
+                    target_users = [buf["patient_id"], buf["doctor_id"]]
+                    notification_callback("targeted", notification_message, target_users)
 
                 # Asociar los RecordSensorData crudos a este MedicalRecord
                 # db.query(RecordSensorData).filter(
@@ -133,10 +189,26 @@ def validar_datos(temperature, blood_pressure, oxygen_saturation, heart_rate):
     if blood_pressure is not None:
         try:
             sistolica, diastolica = map(float, str(blood_pressure).split('/'))
-            if sistolica < 90 or diastolica < 60:
-                alertas.append("Hipotensión: Presión arterial baja")
-            elif sistolica > 140 or diastolica > 90:
-                alertas.append("Hipertensión: Presión arterial alta")
+            
+            # Validar solo los valores detectados (diferentes de 0)
+            if sistolica > 0 and diastolica > 0:
+                # Ambos valores detectados
+                if sistolica < 90 or diastolica < 60:
+                    alertas.append("Hipotensión: Presión arterial baja")
+                elif sistolica > 140 or diastolica > 90:
+                    alertas.append("Hipertensión: Presión arterial alta")
+            elif sistolica > 0:
+                # Solo sistólica detectada
+                if sistolica < 90:
+                    alertas.append("Hipotensión sistólica: Presión sistólica baja")
+                elif sistolica > 140:
+                    alertas.append("Hipertensión sistólica: Presión sistólica alta")
+            elif diastolica > 0:
+                # Solo diastólica detectada
+                if diastolica < 60:
+                    alertas.append("Hipotensión diastólica: Presión diastólica baja")
+                elif diastolica > 90:
+                    alertas.append("Hipertensión diastólica: Presión diastólica alta")
         except Exception:
             pass  # Si el formato no es correcto, ignora
 
