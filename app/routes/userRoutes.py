@@ -107,13 +107,13 @@ async def update_user(
         user.name = name
     if lastname:
         user.lastname = lastname
-    if email != user.email:
+    if email and email != user.email:
         # Validamos si el correo esta en uso
         newEmail = db.query(User).filter(User.email == email).first()
         if newEmail:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Este correo electrónico ya está en uso.")
         user.email = email
-    if password != user.password:
+    if password:
         user.password = get_password_hash(password)
     if gender:
         user.gender = gender
