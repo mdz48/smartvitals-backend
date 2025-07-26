@@ -30,5 +30,5 @@ class User(Base):
         server_default=text('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'),  # Para MySQL
         nullable=False 
     )
-    deleted = Column(DateTime, nullable=True, default=None, server_default=text('NULL ON UPDATE CURRENT_TIMESTAMP'))  # Para MySQL 
+    deleted = Column(DateTime, nullable=True, default=False)  # Para MySQL 
  
