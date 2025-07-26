@@ -8,9 +8,18 @@ from app.schemas.userSchema import userSchema, userCreateSchema, userResponseSch
 from app.shared.config.database import SessionLocal
 from sqlalchemy.orm import Session
 from app.shared.config.database import get_db
-from app.shared.config.middleware.security import get_password_hash, get_current_user, verify_password, ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token
+from app.shared.config.middleware.security import (
+    get_password_hash, 
+    get_current_user, 
+    verify_password, 
+    ACCESS_TOKEN_EXPIRE_MINUTES, 
+    create_access_token,
+    require_admin,
+    require_doctor_or_admin,
+    require_patient_or_admin,
+    require_own_resource_or_doctor_or_admin
+)
 from app.shared.config.s3Files import upload_file_to_s3, upload_files_to_s3
-
 from app.models.interfaces import userGender
 
 userRouter = APIRouter()
@@ -45,14 +54,17 @@ async def create_user(user: userCreateSchema, db: Session = Depends(get_db)):
     return new_user
 
 @userRouter.get("/users", response_model=list[userResponseSchema], tags=["users"], status_code=200)
-async def get_users(db: Session = Depends(get_db)):
+async def get_users(db: Session = Depends(get_db), current_user: User = Depends(require_doctor_or_admin)):
     users = db.query(User).where(User.deleted.is_(None)).all()  # Filtramos usuarios no eliminados
     if not users:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No se encontraron usuarios") 
     return users
  
 @userRouter.get("/users/{user_id}", response_model=userResponseSchema, tags=["users"], status_code=200)
-async def get_user(user_id: int, db: Session = Depends(get_db)):
+async def get_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Los usuarios pueden ver su propio perfil, doctors y admins pueden ver cualquier perfil
+    require_own_resource_or_doctor_or_admin(user_id, current_user)
+    
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
@@ -70,8 +82,11 @@ async def update_user(
     age: Optional[int] = Form(None),
     pregnant: Optional[bool] = Form(None),
     profile_picture: Optional[UploadFile] = File(None),
-    
-    db: Session = Depends(get_db)):
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)):
+
+    # Verificar permisos: Solo el propio usuario, doctores y admins pueden actualizar
+    require_own_resource_or_doctor_or_admin(user_id, current_user)
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -114,14 +129,13 @@ async def update_user(
     return user
 
 @userRouter.delete("/users/{user_id}", status_code=204, tags=["users"])
-async def delete_user(user_id: int, db: Session = Depends(get_db)):
+async def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
     # Eliminamos compleamente el usuario
     db.delete(user)
     db.commit()
-    db.refresh(user)
     return {"detail": "Usuario eliminado exitosamente"}
 
 @userRouter.post("/users/login", response_model=loginResponseSchema, tags=["users"], status_code=200)
@@ -163,9 +177,9 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
     return current_user
 
 
-# ruta de prueb para subir archivos
+# ruta de prueba para subir archivos - requiere autenticación
 @userRouter.post("/users/upload", tags=["users"], status_code=200)
-async def upload_files(files: list[UploadFile] = File(...), db: Session = Depends(get_db)):
+async def upload_files(files: list[UploadFile] = File(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if not files:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No se han subido archivos")
     
@@ -177,9 +191,9 @@ async def upload_files(files: list[UploadFile] = File(...), db: Session = Depend
     return {"file_urls": file_urls}
 
 
-# Ruta para añadir un paciente a un doctor
+# Ruta para añadir un paciente a un doctor - Solo doctores y admins
 @userRouter.post("/doctors/{doctor_id}/patients/{patient_email}", status_code=201, tags=["users"])
-async def add_patient_to_doctor(doctor_id: int, patient_email: str, db: Session = Depends(get_db)):
+async def add_patient_to_doctor(doctor_id: int, patient_email: str, db: Session = Depends(get_db), current_user: User = Depends(require_doctor_or_admin)):
     doctor = db.query(User).filter(User.id == doctor_id, User.role == 'doctor').first()
     if not doctor:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Doctor no encontrado")
@@ -206,7 +220,7 @@ async def add_patient_to_doctor(doctor_id: int, patient_email: str, db: Session 
 
 # Ruta para obtener los pacientes de un doctor
 @userRouter.get("/doctors/{doctor_id}/patients", response_model=list[userResponseSchema], tags=["users"], status_code=200)
-async def get_doctor_patients(doctor_id: int, db: Session = Depends(get_db)):
+async def get_doctor_patients(doctor_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_doctor_or_admin)):
     doctor = db.query(User).filter(User.id == doctor_id, User.role == 'doctor').first()
     if not doctor:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Doctor no encontrado")
@@ -218,9 +232,12 @@ async def get_doctor_patients(doctor_id: int, db: Session = Depends(get_db)):
     
     return patients
 
-# Ruta para obtener los doctores de un paciente
+# Ruta para obtener los doctores de un paciente - El propio paciente, doctores y admins
 @userRouter.get("/patients/{patient_id}/doctors", response_model=list[userResponseSchema], tags=["users"], status_code=200)
-async def get_patient_doctors(patient_id: int, db: Session = Depends(get_db)):
+async def get_patient_doctors(patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Verificar permisos
+    require_own_resource_or_doctor_or_admin(patient_id, current_user)
+    
     patient = db.query(User).filter(User.id == patient_id, User.role == 'patient').first()
     if not patient:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Paciente no encontrado")
@@ -230,17 +247,17 @@ async def get_patient_doctors(patient_id: int, db: Session = Depends(get_db)):
     doctors = db.query(User).filter(User.id.in_(doctor_ids), User.role == 'doctor').all()
     return doctors
 
-# Ruta para obtener todos los doctores
+# Ruta para obtener todos los doctores - Solo doctores y admins
 @userRouter.get("/doctors", response_model=list[userResponseSchema], tags=["users"], status_code=200)
-async def get_doctors(db: Session = Depends(get_db)):
+async def get_doctors(db: Session = Depends(get_db), current_user: User = Depends(require_doctor_or_admin)):
     doctors = db.query(User).filter(User.role == 'doctor', User.deleted.is_(None)).all()
     return doctors
 
-# Ruta para registrar a un nuevo usuario(paciente) como doctor y añadirlo automaticamente a su lista de pacientes
+# Ruta para registrar a un nuevo usuario(paciente) como doctor - Solo admins
 @userRouter.post("/doctors/{doctor_id}/register/patient", response_model=userResponseSchema, tags=["users"], status_code=201)
-async def register_patient_as_doctor(user: userCreateSchema, doctor_id: int, db: Session = Depends(get_db)):
-    # Usamos la funcino para crear un nuevo usuario
-    newUser = await create_user(user, db)
+async def register_patient_as_doctor(user: userCreateSchema, doctor_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+    # Usamos la funcion para crear un nuevo usuario - necesitamos ser admin para crear usuarios
+    newUser = await create_user(user, db, current_user)
     # Añadir el nuevo paciente a la lista de pacientes del doctor
     doctor = db.query(User).filter(User.id == doctor_id, User.role == 'doctor').first()
     if not doctor:
@@ -252,9 +269,9 @@ async def register_patient_as_doctor(user: userCreateSchema, doctor_id: int, db:
     return newUser
     
     
-# Ruta para eliminar un paciente de un doctor
+# Ruta para eliminar un paciente de un doctor - Solo doctores y admins
 @userRouter.delete("/doctors/{doctor_id}/patients/{patient_id}", status_code=204, tags=["users"])
-async def remove_patient_from_doctor(doctor_id: int, patient_id: int, db: Session = Depends(get_db)):
+async def remove_patient_from_doctor(doctor_id: int, patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_doctor_or_admin)):
     doctor = db.query(User).filter(User.id == doctor_id, User.role == 'doctor').first()
     if not doctor:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Doctor no encontrado")
@@ -279,7 +296,7 @@ async def remove_patient_from_doctor(doctor_id: int, patient_id: int, db: Sessio
 
 # Get user by email
 @userRouter.get("/users/email/{email}", response_model=userResponseSchema, tags=["users"], status_code=200)
-async def get_user_by_email(email: str, db: Session = Depends(get_db)):
+async def get_user_by_email(email: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")

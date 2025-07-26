@@ -15,11 +15,13 @@ from app.shared.config.middleware.security import get_current_user
 from app.shared.services.stadisticsService import get_medical_record_statistics
 from app.shared.utils.riskService import detectar_riesgos
 
+from app.shared.config.middleware.security import get_current_user
+
 medicalRecordRouter = APIRouter()
 
 # Ruta para crear un nuevo registro médico
 @medicalRecordRouter.post("/medicalRecords", response_model=medicalRecordResponseSchema, status_code=201, tags=["medical_records"])
-async def create_medical_record(medical_record: medicalRecordSchema, db: Session = Depends(get_db)):
+async def create_medical_record(medical_record: medicalRecordSchema, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     patient = db.query(User).filter(User.id == medical_record.patient_id, User.role == 'patient').first()
     if not patient:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Paciente no encontrado")
@@ -67,13 +69,13 @@ async def create_medical_record(medical_record: medicalRecordSchema, db: Session
         
 # Ruta para obtener todos los registros médicos
 @medicalRecordRouter.get("/medicalRecords", response_model=list[medicalRecordResponseSchema], tags=["medical_records"], status_code=200)
-async def get_medical_records(db: Session = Depends(get_db)):
+async def get_medical_records(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     records = db.query(MedicalRecord).all()
     return records
 
 # Ruta para obtener un registro médico por ID
 @medicalRecordRouter.get("/medicalRecords/{record_id}", response_model=medicalRecordWithRisksResponseSchema, tags=["medical_records"], status_code=200)
-async def get_medical_record(record_id: int, db: Session = Depends(get_db)):
+async def get_medical_record(record_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     record = db.query(MedicalRecord).filter(MedicalRecord.id == record_id).first()
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Registro médico no encontrado")
@@ -102,7 +104,7 @@ async def get_medical_record(record_id: int, db: Session = Depends(get_db)):
 
 # Ruta para obtener los registros médicos de un paciente específico
 @medicalRecordRouter.get("/patients/{patient_id}/medicalRecords", response_model=list[medicalRecordResponseSchema], tags=["medical_records"], status_code=200)
-async def get_patient_medical_records(patient_id: int, db: Session = Depends(get_db)):
+async def get_patient_medical_records(patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     records = db.query(MedicalRecord).filter(MedicalRecord.patient_id == patient_id).all()
     if not records:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No se encontraron registros médicos para este paciente")
@@ -110,7 +112,7 @@ async def get_patient_medical_records(patient_id: int, db: Session = Depends(get
 
 # Ruta para actualizar un registro médico
 @medicalRecordRouter.put("/medicalRecords/{record_id}", response_model=medicalRecordResponseSchema, tags=["medical_records"], status_code=200)
-async def update_medical_record(record_id: int, medical_record: medicalRecordSchema, db: Session = Depends(get_db)):
+async def update_medical_record(record_id: int, medical_record: medicalRecordSchema, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     existing_record = db.query(MedicalRecord).filter(MedicalRecord.id == record_id).first()
     if not existing_record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Registro médico no encontrado")
@@ -127,7 +129,7 @@ async def update_medical_record(record_id: int, medical_record: medicalRecordSch
 
 # Ruta para obtener los registros médicos de un doctor específico
 @medicalRecordRouter.get("/doctors/{doctor_id}/medicalRecords", response_model=list[medicalRecordResponseSchema], tags=["medical_records"], status_code=200)
-async def get_doctor_medical_records(doctor_id: int, db: Session = Depends(get_db)):
+async def get_doctor_medical_records(doctor_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     records = db.query(MedicalRecord).filter(MedicalRecord.doctor_id == doctor_id).all()
     if not records:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No se encontraron registros médicos para este doctor")
@@ -135,7 +137,7 @@ async def get_doctor_medical_records(doctor_id: int, db: Session = Depends(get_d
 
 # Ruta para eliminar un registro médico
 @medicalRecordRouter.delete("/medicalRecords/{record_id}", status_code=204, tags=["medical_records"])
-async def delete_medical_record(record_id: int, db: Session = Depends(get_db)):
+async def delete_medical_record(record_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     record = db.query(MedicalRecord).filter(MedicalRecord.id == record_id).first()
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Registro médico no encontrado")
@@ -150,7 +152,8 @@ async def get_medical_records_by_date_range(
     patient_id: int, 
     start_date: str = Query(..., description="Formato: YYYY-MM-DD"), 
     end_date: str = Query(..., description="Formato: YYYY-MM-DD"), 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     # Validar formato de fecha
     try:
@@ -179,7 +182,8 @@ async def get_doctor_medical_records_by_date_range(
     doctor_id: int, 
     start_date: str = Query(..., description="Formato: YYYY-MM-DD"), 
     end_date: str = Query(..., description="Formato: YYYY-MM-DD"), 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     # Validar formato de fecha
     try:

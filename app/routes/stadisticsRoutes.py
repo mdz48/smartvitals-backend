@@ -17,7 +17,7 @@ stadisticsRouter = APIRouter()
 
 # Ruta para obtener la estadistica de un paciente en base a sus expedientes
 @stadisticsRouter.get("/stadistics/{patient_id}", status_code=200)
-async def get_patient_statistics(patient_id: int, db: Session = Depends(get_db)):
+async def get_patient_statistics(patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     records = await get_patient_medical_records(patient_id, db)
     if not records:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No se encontraron registros médicos para este paciente")
@@ -26,7 +26,7 @@ async def get_patient_statistics(patient_id: int, db: Session = Depends(get_db))
 
 # Rutas para obtener las estadísticas de los pacientes de un doctor
 @stadisticsRouter.get("/stadistics/{doctor_id}/patients", tags=["stadistics"], status_code=200)
-async def get_doctor_patients_statistics(doctor_id: int, db: Session = Depends(get_db)):
+async def get_doctor_patients_statistics(doctor_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     records = await get_doctor_medical_records(doctor_id, db)
     if not records:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No se encontraron registros médicos para este doctor")
@@ -35,7 +35,7 @@ async def get_doctor_patients_statistics(doctor_id: int, db: Session = Depends(g
 
 # Ruta para obtener la estadisica de los registros medicos dentro de un rango de fechas de un paciente
 @stadisticsRouter.get("/stadistics/{patient_id}/range", tags=["stadistics"], status_code=200)
-async def get_medical_records_by_date_range(patient_id: int, start_date: str, end_date: str, db: Session = Depends(get_db)):
+async def get_medical_records_by_date_range(patient_id: int, start_date: str, end_date: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     records = db.query(MedicalRecord).filter(
         MedicalRecord.patient_id == patient_id,
         MedicalRecord.created_at >= start_date,
@@ -53,7 +53,7 @@ async def get_medical_records_by_date_range(patient_id: int, start_date: str, en
 
 # Ruta para obtener las estadísticas de un doctor dentro de un rango de fechas
 @stadisticsRouter.get("/stadistics/{doctor_id}/patients/range", tags=["stadistics"], status_code=200)
-async def get_doctor_statistics_by_date_range(doctor_id: int, start_date: str, end_date: str, db: Session = Depends(get_db)):
+async def get_doctor_statistics_by_date_range(doctor_id: int, start_date: str, end_date: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     records = await get_doctor_medical_records(doctor_id, db)
     if not records:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No se encontraron registros médicos para este doctor")
