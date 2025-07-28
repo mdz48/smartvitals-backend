@@ -72,6 +72,9 @@ def process_and_save_records():
     while True:
         time.sleep(60)  # Espera 1 minuto
         for patient_id, buf in list(data_buffer.items()):
+            # CRÍTICO: Solo procesar si la medición está activa para este paciente
+            if not medicion_activa.get(patient_id, False):
+                continue  # No procesar si la medición no está activa
             if len(buf["temperature"]) == 0:
                 continue  # No hay datos nuevos
 
@@ -227,6 +230,39 @@ def validar_datos(temperature, blood_pressure, oxygen_saturation, heart_rate):
             alertas.append("Taquicardia: Ritmo cardíaco mayor a 100 lpm")
 
     return alertas
+
+def iniciar_medicion(patient_id):
+    """Inicia la medición para un paciente específico"""
+    medicion_activa[patient_id] = True
+    # Limpiar el buffer anterior para evitar datos residuales
+    data_buffer[patient_id] = {
+        "temperature": [],
+        "blood_pressure": [],
+        "oxygen_saturation": [],
+        "heart_rate": [],
+        "doctor_id": None,
+        "patient_id": None
+    }
+    print(f"Medición iniciada para paciente {patient_id}")
+
+def detener_medicion(patient_id):
+    """Detiene la medición para un paciente específico"""
+    medicion_activa[patient_id] = False
+    # Opcional: limpiar el buffer inmediatamente
+    if patient_id in data_buffer:
+        data_buffer[patient_id] = {
+            "temperature": [],
+            "blood_pressure": [],
+            "oxygen_saturation": [],
+            "heart_rate": [],
+            "doctor_id": None,
+            "patient_id": None
+        }
+    print(f"Medición detenida para paciente {patient_id}")
+
+def is_medicion_activa(patient_id):
+    """Verifica si la medición está activa para un paciente"""
+    return medicion_activa.get(patient_id, False)
 
 # Inicia el hilo de procesamiento
 threading.Thread(target=process_and_save_records, daemon=True).start()

@@ -9,7 +9,7 @@ import threading
 import logging
 from concurrent.futures import ThreadPoolExecutor
 import queue
-from app.shared.services.sensoresService import add_sensor_data, process_and_save_records, validar_datos, medicion_activa, set_notification_callback
+from app.shared.services.sensoresService import add_sensor_data, process_and_save_records, validar_datos, iniciar_medicion, detener_medicion, is_medicion_activa, set_notification_callback
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -237,7 +237,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 
                 if data.get("action") == "start":
                     patient_id = data["patient_id"]
-                    medicion_activa[patient_id] = True
+                    iniciar_medicion(patient_id)
                     
                     # Enviar configuración al Raspberry Pi
                     user_config = {
@@ -256,7 +256,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     
                 elif data.get("action") == "stop":
                     patient_id = data["patient_id"]
-                    medicion_activa[patient_id] = False
+                    detener_medicion(patient_id)
                     
                     # Enviar configuración de stop al Raspberry Pi
                     user_config = {
