@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum, text, ForeignKey, Float, TEXT
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum, text, ForeignKey, Float, TEXT, func
 from sqlalchemy.orm import relationship
 from app.shared.config.database import Base
 from app.models.interfaces import userRole
@@ -12,14 +12,14 @@ class MedicalRecord(Base):
     patient_id = Column(Integer, ForeignKey('user.id'), nullable=False)
     doctor_id = Column(Integer, ForeignKey('user.id'), nullable=True)
     temperature = Column(Float, nullable=False)
-    blood_pressure = Column(Float, nullable=False)
+    blood_pressure = Column(String(20), nullable=False)
     oxygen_saturation = Column(Float, nullable=False)
     heart_rate = Column(Float, nullable=False)
     diagnosis = Column(TEXT, nullable=True)
     treatment = Column(TEXT, nullable=True)
     notes = Column(TEXT, nullable=True)
-    created_at = Column(DateTime, default=datetime.now, nullable=False, server_default=text('CURRENT_TIMESTAMP')) 
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False, server_default=text('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'))
+    created_at = Column(DateTime, default=datetime.now, nullable=False, server_default=func.now()) 
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False, server_default=func.now())
 
     patient = relationship("User", foreign_keys=[patient_id])
     doctor = relationship("User", foreign_keys=[doctor_id])

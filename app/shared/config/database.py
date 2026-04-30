@@ -9,13 +9,13 @@ load_dotenv()
 db_config = {
     "user": os.getenv("DB_USER"),
     "password": os.getenv("DB_PASSWORD"),
-    "host": os.getenv("DB_HOST", "localhost"),
-    "port": os.getenv("DB_PORT", "3306"),
+    "host": os.getenv("DB_HOST"),
+    "port": os.getenv("DB_PORT"),
     "database": os.getenv("DB_NAME")
 }
 
 try:
-    SQLALCHEMY_DATABASE_URL = f"mysql+pymysql://{db_config['user']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/{db_config['database']}"
+    SQLALCHEMY_DATABASE_URL = f"postgresql+psycopg2://{db_config['user']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/{db_config['database']}"
     engine = create_engine(SQLALCHEMY_DATABASE_URL)
     with engine.connect() as connection:
         pass

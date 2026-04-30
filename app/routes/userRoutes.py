@@ -284,3 +284,9 @@ async def get_user_by_email(email: str, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
     return user
+
+
+# Test para subir imagenes a S3
+@userRouter.post("/test/upload", tags=["users"], status_code=200)
+async def test_upload_image(file: UploadFile = File(...)):
+    return upload_file_to_s3(file)

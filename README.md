@@ -1,28 +1,47 @@
-# Backend Evotek
+# Smartvitals Backend
 
-## Configuración Inicial
+Backend REST y WebSocket para la plataforma Smartvitals. Este servicio gestiona usuarios, pacientes, doctores, expedientes médicos y captura de datos biométricos.
 
-Para el correcto funcionamiento del backend ejecutar los siguientes comandos:
+## Frontend
 
-### 1. Instalación de dependencias
+La interfaz web correspondiente se encuentra en:
+
+https://github.com/mdz48/smartvitals-frontend
+
+## Tecnologías
+
+- FastAPI
+- SQLAlchemy
+- PostgreSQL
+- WebSockets
+- AWS S3
+
+## Requisitos
+
+- Python 3.10 o superior
+- PostgreSQL
+- Variables de entorno configuradas
+
+## Instalación
+
+1. Instala las dependencias:
+
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Configuración de variables de entorno
+2. Crea un archivo `.env` en la raíz del proyecto con una configuración similar a esta:
 
-Crear un archivo `.env` en la raíz del proyecto con la siguiente configuración:
-
-```
-DATABASE_URL=mysql://root:root@localhost:3306/evotek
+```env
+DB_URL=postgresql+psycopg2://usuario:contraseña@localhost:5432/smartvitals
 SECRET_KEY=
 AWS_S3_BUCKET_NAME=
 
-DATABASE_USER=
-DATABASE_PASSWORD=
-DB_HOST=
-DB_NAME=
-DB_PORT=
+DB_USER=
+DB_PASSWORD=
+DB_HOST=localhost
+DB_NAME=smartvitals
+DB_PORT=5432
 
 RABBITMQ_HOST=
 RABBITMQ_USER=
@@ -37,27 +56,48 @@ aws_secret_access_key=
 aws_session_token=
 ```
 
-> **Nota:**  
+> **Nota:**
+>
 > - Llena los valores de `aws_access_key_id`, `aws_secret_access_key`, `aws_session_token` y `aws_region` con tus credenciales de AWS.
 > - Si la instancia AWS no esta prendida, entonces se utilizará una Base de datos de manera local.
 
-## Ejecutar el servidor REST
+## Ejecución
+
+### Servidor REST
+
 ```bash
 uvicorn main:app --reload
 ```
 
-## Ejecutar el servidor Websocket
+### Servidor WebSocket
+
 ```bash
 uvicorn websocket:app --reload --port 8001
 ```
 
-## Conectarse a Ws para guardar un expediente
-```bash
+## WebSocket de sensores
+
+Conéctate a:
+
+```text
 ws://localhost:8001/ws/sensores
-{"action": "start", "patient_id": 5}
-{"action": "stop", "patient_id": 5}
 ```
 
-## Notas importantes
-- Las tablas se crean automáticamente al iniciar la aplicación.
-- Para cambios en la estructura de la base de datos, elimina las tablas manualmente y reinicia la aplicación.
+Ejemplos de mensajes:
+
+```json
+{ "action": "start", "patient_id": 5 }
+```
+
+```json
+{ "action": "stop", "patient_id": 5 }
+```
+
+## Datos de prueba
+
+Para cargar datos de ejemplo en PostgreSQL puedes usar el script:
+
+```sql
+scripts/seed_postgres.sql
+```
+
