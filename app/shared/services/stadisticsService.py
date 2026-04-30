@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import re
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, date
 from sqlalchemy.orm import Session
@@ -17,10 +18,21 @@ async def get_medical_record_statistics(db: Session, medical_records: List[Medic
     """
     if not medical_records:
         return {"error": "No hay registros médicos para analizar"}
+
+    def parse_blood_pressure(value: Any) -> Optional[float]:
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            match = re.match(r"^\s*(\d+(?:\.\d+)?)", value)
+            if match:
+                return float(match.group(1))
+        return None
     
     # Extraer datos de cada métrica
     temperatures = [record.temperature for record in medical_records]
-    blood_pressures = [record.blood_pressure for record in medical_records]
+    blood_pressures = [bp for bp in (parse_blood_pressure(record.blood_pressure) for record in medical_records) if bp is not None]
     oxygen_saturations = [record.oxygen_saturation for record in medical_records]
     heart_rates = [record.heart_rate for record in medical_records]
     
@@ -122,11 +134,11 @@ async def get_medical_record_statistics(db: Session, medical_records: List[Medic
         ),
         # Hipertensión e hipotensión con valores estandarizados para adultos
         "riesgo_hipertension": calcular_probabilidad(
-            lambda r: r.blood_pressure is not None and r.blood_pressure > 140.0,
+            lambda r: (parse_blood_pressure(r.blood_pressure) is not None and parse_blood_pressure(r.blood_pressure) > 140.0),
             medical_records
         ),
         "riesgo_hipotension": calcular_probabilidad(
-            lambda r: r.blood_pressure is not None and r.blood_pressure < 50.0,
+            lambda r: (parse_blood_pressure(r.blood_pressure) is not None and parse_blood_pressure(r.blood_pressure) < 50.0),
             medical_records
         ),
         # Baja saturación 
@@ -168,8 +180,9 @@ async def get_medical_record_statistics(db: Session, medical_records: List[Medic
     )
     # Ejemplo extendido: shock (hipotensión + taquicardia + baja saturación)
     def condicion_shock(r):
+        systolic_bp = parse_blood_pressure(r.blood_pressure)
         return (
-            r.blood_pressure is not None and r.blood_pressure < 90.0 and
+            systolic_bp is not None and systolic_bp < 90.0 and
             r.heart_rate is not None and r.heart_rate > get_heart_rate_range(r.patient.age)[1] and
             r.oxygen_saturation is not None and r.oxygen_saturation < 90.0
         )

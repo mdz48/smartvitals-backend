@@ -93,11 +93,3 @@ Ejemplos de mensajes:
 { "action": "stop", "patient_id": 5 }
 ```
 
-## Datos de prueba
-
-Para cargar datos de ejemplo en PostgreSQL puedes usar el script:
-
-```sql
-scripts/seed_postgres.sql
-```
-

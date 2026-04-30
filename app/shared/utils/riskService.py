@@ -1,13 +1,27 @@
 from app.schemas.riskSchema import RisksSchema
+import re
+
+
+def parse_blood_pressure(value):
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        match = re.match(r"^\s*(\d+(?:\.\d+)?)", value)
+        if match:
+            return float(match.group(1))
+    return None
 
 def detectar_riesgos(record):
+    systolic_bp = parse_blood_pressure(record.blood_pressure)
     return RisksSchema(
         hipotermia=(record.temperature is not None and record.temperature != 0 and record.temperature < 35.0),
         fiebre=(record.temperature is not None and record.temperature != 0 and record.temperature > 37.5),
         arritmia=(record.heart_rate is not None and record.heart_rate != 0 and (record.heart_rate < 60 or record.heart_rate > 100)),
         hipoxemia=(record.oxygen_saturation is not None and record.oxygen_saturation != 0 and record.oxygen_saturation < 90.0),
-        hipertension=(record.blood_pressure is not None and record.blood_pressure != 0 and record.blood_pressure > 140.0),
-        hipotension=(record.blood_pressure is not None and record.blood_pressure != 0 and record.blood_pressure < 90.0)
+        hipertension=(systolic_bp is not None and systolic_bp > 140.0),
+        hipotension=(systolic_bp is not None and systolic_bp < 90.0)
     )
     
 def get_respiratory_rate_range(age):

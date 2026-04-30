@@ -8,7 +8,7 @@ class medicalRecordSchema(BaseModel):
     patient_id: int
     doctor_id: Optional[int] = None
     temperature: float
-    blood_pressure: float
+    blood_pressure: str
     oxygen_saturation: float
     heart_rate: float
     diagnosis: str
