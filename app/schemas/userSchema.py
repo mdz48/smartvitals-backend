@@ -11,7 +11,7 @@ class userSchema(BaseModel):
     gender: userGender 
     pregnant: bool | None = False 
     role: userRole 
-    profile_picture: str | None = "https://smartvitals-bucket-01.s3.us-east-1.amazonaws.com/default-pfp.png" 
+    profile_picture: str | None = "https://kgivveczmdaqzomanqag.supabase.co/storage/v1/object/public/smartvitals-bucket/Blue%20Modern%20Education%20Logo%20(1920%20x%201080%20px).svg" 
     model_config = ConfigDict(from_attributes=True)
         
     
