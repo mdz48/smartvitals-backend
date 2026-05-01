@@ -11,6 +11,10 @@ from app.models.recordSensorData import RecordSensorData
 
 app = FastAPI()
 
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
 app.include_router(userRouter, prefix="/api", tags=["users"])
 app.include_router(medicalRecordRouter, prefix="/api", tags=["medical_records"])
 app.include_router(stadisticsRouter, prefix="/api", tags=["stadistics"])
